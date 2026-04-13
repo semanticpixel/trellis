@@ -1,0 +1,72 @@
+# Trellis
+
+Multi-workspace LLM development environment. Run multiple AI coding sessions across workspaces simultaneously, review diffs and plans inline, and manage git branches — all from one app.
+
+## Features
+
+- **Multi-LLM**: Claude, OpenAI, Ollama, and custom endpoints via API keys
+- **Workspace Tree**: Organize sessions by workspace/repo with color labels
+- **Inline Review**: Monaco diff editor with inline comments, plan annotations (redline-style)
+- **Annotation Feedback**: Comments on diffs/plans automatically feed back to the LLM
+- **Git-Aware**: Branch switching, diff viewer, embedded terminal
+- **Concurrent Sessions**: Multiple threads streaming simultaneously across workspaces
+
+## Setup
+
+```bash
+# Install dependencies
+pnpm install
+
+# Rebuild native modules for Electron
+npx electron-rebuild -f -w node-pty better-sqlite3
+
+# Start development
+pnpm run electron:dev
+```
+
+## API Keys
+
+Trellis stores API keys securely in the OS keychain via Electron's `safeStorage`. Configure them in Settings on first launch.
+
+Required for each provider:
+- **Claude**: `ANTHROPIC_API_KEY`
+- **OpenAI**: `OPENAI_API_KEY`
+- **Ollama**: No key needed (local)
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
+
+```
+Electron (desktop shell)
+  └── Express + WebSocket (backend)
+        ├── SQLite (persistence)
+        ├── LLM Adapters (Claude, OpenAI)
+        ├── Tools (file read/write, bash — workspace-scoped)
+        └── Session Runner (prompt → LLM → tool loop)
+  └── React + Vite (frontend)
+        ├── Sidebar (workspace tree with colors)
+        ├── Chat Panel (streaming + tool calls)
+        └── Review Panel (Monaco diff + plan annotations)
+```
+
+## Transfer to Another Machine
+
+```bash
+pnpm run bundle  # creates ~/Desktop/trellis.bundle
+
+# On the target machine:
+git clone trellis.bundle trellis
+cd trellis
+pnpm install
+npx electron-rebuild -f -w node-pty better-sqlite3
+pnpm run electron:dev
+```
+
+## Tech Stack
+
+- Electron 35, React 19, Vite 7, TypeScript 5.7
+- SQLite (better-sqlite3, WAL mode)
+- Monaco Editor (lazy-loaded)
+- xterm.js + node-pty
+- @anthropic-ai/sdk, openai

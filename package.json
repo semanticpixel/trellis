@@ -1,0 +1,60 @@
+{
+  "name": "trellis",
+  "version": "0.1.0",
+  "description": "Multi-workspace LLM development environment",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "tsx watch src/index.ts",
+    "dev:dashboard": "pnpm -C dashboard dev",
+    "build": "pnpm run build:server && pnpm run build:dashboard",
+    "build:server": "tsc -p tsconfig.json",
+    "build:dashboard": "pnpm -C dashboard build",
+    "typecheck": "tsc --noEmit && pnpm -C dashboard exec tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:rebuild": "npx electron-rebuild -f -w node-pty better-sqlite3",
+    "bundle": "git bundle create ~/Desktop/trellis.bundle --all"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "glob": "^11.0.0",
+    "node-pty": "^1.1.0",
+    "openai": "^4.80.0",
+    "uuid": "^11.0.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/cors": "^2.8.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.0",
+    "electron": "^35.0.0",
+    "electron-rebuild": "^3.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "esbuild",
+      "lzma-native",
+      "node-pty"
+    ]
+  },
+  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
+}

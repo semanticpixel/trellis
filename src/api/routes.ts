@@ -1,0 +1,234 @@
+import { Router } from 'express';
+import type { ServerContext } from './server.js';
+import { existsSync, readdirSync, statSync } from 'fs';
+import { join, basename } from 'path';
+
+export function createRoutes(ctx: ServerContext): Router {
+  const router = Router();
+  const { store, broadcast } = ctx;
+
+  // ── Workspaces ─────────────────────────────────────────────
+
+  router.get('/workspaces', (_req, res) => {
+    const workspaces = store.listWorkspaces();
+    res.json(workspaces);
+  });
+
+  router.post('/workspaces', (req, res) => {
+    const { name, path, color } = req.body;
+    if (!name || !path) {
+      res.status(400).json({ error: 'name and path are required' });
+      return;
+    }
+    try {
+      const workspace = store.createWorkspace({ name, path, color });
+
+      // Auto-scan for git repos one level deep
+      if (existsSync(path)) {
+        try {
+          const entries = readdirSync(path);
+          for (const entry of entries) {
+            const entryPath = join(path, entry);
+            const gitPath = join(entryPath, '.git');
+            try {
+              if (statSync(entryPath).isDirectory() && existsSync(gitPath)) {
+                store.createRepo(workspace.id, entry, entryPath);
+              }
+            } catch {
+              // skip entries we can't stat
+            }
+          }
+        } catch {
+          // skip if we can't read the directory
+        }
+      }
+
+      res.status(201).json(workspace);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      if (message.includes('UNIQUE constraint')) {
+        res.status(409).json({ error: 'Workspace path already exists' });
+        return;
+      }
+      res.status(500).json({ error: message });
+    }
+  });
+
+  router.patch('/workspaces/:id', (req, res) => {
+    const { color } = req.body;
+    if (color) {
+      store.updateWorkspaceColor(req.params.id, color);
+    }
+    const workspace = store.getWorkspace(req.params.id);
+    if (!workspace) {
+      res.status(404).json({ error: 'Workspace not found' });
+      return;
+    }
+    res.json(workspace);
+  });
+
+  router.delete('/workspaces/:id', (req, res) => {
+    store.deleteWorkspace(req.params.id);
+    res.status(204).end();
+  });
+
+  // ── Repos ──────────────────────────────────────────────────
+
+  router.get('/workspaces/:workspaceId/repos', (req, res) => {
+    const repos = store.listRepos(req.params.workspaceId);
+
+    // Check which paths still exist
+    const result = repos.map((repo) => ({
+      ...repo,
+      missing: !existsSync(repo.path),
+    }));
+    res.json(result);
+  });
+
+  // ── Threads ────────────────────────────────────────────────
+
+  router.get('/threads', (req, res) => {
+    const { workspace_id, repo_id } = req.query;
+    const threads = store.listThreads(
+      workspace_id as string | undefined,
+      repo_id as string | undefined,
+    );
+    res.json(threads);
+  });
+
+  router.post('/threads', (req, res) => {
+    const thread = store.createThread(req.body);
+    res.status(201).json(thread);
+  });
+
+  router.get('/threads/:id', (req, res) => {
+    const thread = store.getThread(req.params.id);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+    res.json(thread);
+  });
+
+  router.patch('/threads/:id', (req, res) => {
+    const { title, status } = req.body;
+    if (title) store.updateThreadTitle(req.params.id, title);
+    if (status) {
+      store.updateThreadStatus(req.params.id, status);
+      broadcast(req.params.id, 'thread_status', { status });
+    }
+    const thread = store.getThread(req.params.id);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+    res.json(thread);
+  });
+
+  router.delete('/threads/:id', (req, res) => {
+    store.deleteThread(req.params.id);
+    res.status(204).end();
+  });
+
+  // ── Messages ───────────────────────────────────────────────
+
+  router.get('/threads/:threadId/messages', (req, res) => {
+    const { before, limit } = req.query;
+    const messages = store.listMessages(
+      req.params.threadId,
+      limit ? parseInt(limit as string, 10) : 100,
+      before ? parseInt(before as string, 10) : undefined,
+    );
+    res.json(messages);
+  });
+
+  router.post('/threads/:threadId/messages', (req, res) => {
+    const { content } = req.body;
+    if (!content) {
+      res.status(400).json({ error: 'content is required' });
+      return;
+    }
+
+    const threadId = req.params.threadId;
+    const thread = store.getThread(threadId);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+
+    // Store user message
+    const message = store.createMessage(threadId, 'user', content);
+
+    // Auto-title: first 60 chars of first user message
+    const allMessages = store.listMessages(threadId);
+    const userMessages = allMessages.filter((m) => m.role === 'user');
+    if (userMessages.length === 1 && thread.title === 'New Thread') {
+      const autoTitle = content.slice(0, 60) + (content.length > 60 ? '...' : '');
+      store.updateThreadTitle(threadId, autoTitle);
+    }
+
+    // Broadcast the user message
+    broadcast(threadId, 'thread_message', message);
+
+    // TODO: Phase 1 — trigger SessionRunner here
+    // For now, just return the stored message
+    res.status(201).json(message);
+  });
+
+  // ── Annotations ────────────────────────────────────────────
+
+  router.get('/threads/:threadId/annotations', (req, res) => {
+    const annotations = store.listAnnotations(req.params.threadId);
+    res.json(annotations);
+  });
+
+  router.post('/threads/:threadId/annotations', (req, res) => {
+    const annotation = store.createAnnotation(req.params.threadId, req.body);
+    res.status(201).json(annotation);
+  });
+
+  router.delete('/annotations/:id', (req, res) => {
+    store.deleteAnnotation(req.params.id);
+    res.status(204).end();
+  });
+
+  // ── Settings ───────────────────────────────────────────────
+
+  router.get('/settings/:key', (req, res) => {
+    const value = store.getSetting(req.params.key);
+    if (value === undefined) {
+      res.status(404).json({ error: 'Setting not found' });
+      return;
+    }
+    res.json({ key: req.params.key, value });
+  });
+
+  router.put('/settings/:key', (req, res) => {
+    const { value } = req.body;
+    store.setSetting(req.params.key, value);
+    res.json({ key: req.params.key, value });
+  });
+
+  // ── Workspace Path Check ───────────────────────────────────
+
+  router.get('/check-paths', (_req, res) => {
+    const workspaces = store.listWorkspaces();
+    const missing: Array<{ type: 'workspace' | 'repo'; id: string; name: string; path: string }> = [];
+
+    for (const ws of workspaces) {
+      if (!existsSync(ws.path)) {
+        missing.push({ type: 'workspace', id: ws.id, name: ws.name, path: ws.path });
+      }
+      const repos = store.listRepos(ws.id);
+      for (const repo of repos) {
+        if (!existsSync(repo.path)) {
+          missing.push({ type: 'repo', id: repo.id, name: repo.name, path: repo.path });
+        }
+      }
+    }
+
+    res.json({ missing, count: missing.length });
+  });
+
+  return router;
+}

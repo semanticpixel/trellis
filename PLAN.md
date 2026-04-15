@@ -2,7 +2,7 @@
 
 ## Current Status (last updated: 2026-04-15)
 
-### What's done (Phase 1 + Phase 2 complete)
+### What's done (Phase 1 + Phase 2 + Phase 3 complete)
 
 **Phase 1 — Foundation + Chat + Sidebar:**
 - **Project scaffolding**: package.json, tsconfig, Electron config, Vite config, .gitignore, .nvmrc
@@ -38,6 +38,22 @@
 - **Review hooks**: `useReview.ts` — useAnnotations, useCreateAnnotation, useDeleteAnnotation, useResolveAnnotation, useSendFeedback, useDiffSummary, useFileDiff, useStageFile, useRevertFile, usePlan
 - **CSS Modules**: All review components use CSS Modules with design token variables, no inline styles
 
+**Phase 3 — Git Operations + Terminal:**
+- **Branch operations**: `src/git/operations.ts` — added `listBranches()` (sorted by last commit via `git for-each-ref`), `checkoutBranch()`, `createBranch()`
+- **Branch API routes**: `GET /repos/:id/branches` (branch list), `POST /repos/:id/checkout` (switch branch + DB update + WS broadcast), `POST /repos/:id/create-branch` (create + checkout + broadcast)
+- **Terminal WebSocket protocol**: `src/api/server.ts` — per-client PTY session management via `WeakMap<WebSocket, Map<workspaceId, TerminalSession>>`, handles `terminal_start` (spawns node-pty), `terminal_input`, `terminal_resize`, routes `terminal_output`/`terminal_exit` only to originating client, cleanup on disconnect
+- **Terminal types**: `src/shared/types.ts` — `TerminalStartMessage`, `TerminalInputMessage`, `TerminalResizeMessage`, `terminal_output`/`terminal_exit` added to `WSEventType`
+- **WebSocket send**: `dashboard/src/hooks/useWebSocket.ts` — added `sendWs()` for client-to-server messages (terminal input, resize)
+- **Branch hooks**: `dashboard/src/hooks/useWorkspaces.ts` — `useBranches()`, `useCheckoutBranch()`, `useCreateBranch()` React Query hooks
+- **BranchPopover**: `dashboard/src/components/git/BranchPopover.tsx` — opens on branch pill click, search/filter, branch list sorted by last commit with relative dates, current branch highlighted with check icon, create new branch input, dismiss on outside click or Escape
+- **EmbeddedTerminal**: `dashboard/src/components/terminal/EmbeddedTerminal.tsx` — xterm.js with FitAddon, ResizeObserver-based fitting (not on mount per plan), collapsible header, sends/receives terminal data via WebSocket
+- **RepoRow wiring**: Branch pill click opens BranchPopover with positioned anchor
+- **Sidebar wiring**: Listens for `repo_update` WebSocket events to auto-refresh branch pills via query invalidation
+- **App wiring**: `Cmd+`` keyboard shortcut toggles terminal, passes `workspaceId` + `terminalCwd` (repo path or workspace path) to ChatPanel
+- **ChatPanel wiring**: Renders `EmbeddedTerminal` as collapsible strip at bottom of chat pane
+- **Dependencies**: `@xterm/xterm`, `@xterm/addon-fit` added to dashboard
+- **CSS Modules**: All new components use CSS Modules with design token variables, no inline styles
+
 ### What's verified
 - Backend compiles (`tsc --noEmit` passes)
 - Dashboard compiles (`tsc --noEmit` passes)
@@ -46,11 +62,10 @@
 - Creating a workspace auto-discovers git repos (tested with w0 — found 12 repos)
 - pnpm install + native module builds work (better-sqlite3, node-pty, electron)
 
-### What's next (Phase 3)
-Phase 2 is complete. Next up is Phase 3: Git Operations + Terminal.
+### What's next (Phase 4)
+Phase 3 is complete. Next up is Phase 4: Polish + Extended LLM Support.
 
-### After Phase 2: future phases
-- **Phase 3**: Git operations (branch popover, embedded terminal)
+### After Phase 3: future phases
 - **Phase 4**: Polish (Ollama/custom adapters, settings UI, flat sidebar mode, keyboard shortcuts)
 
 ---

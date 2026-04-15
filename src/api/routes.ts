@@ -2,6 +2,9 @@ import { Router } from 'express';
 import type { ServerContext } from './server.js';
 import { existsSync, readdirSync, statSync } from 'fs';
 import { join, basename } from 'path';
+import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile } from '../git/operations.js';
+import { formatFeedback } from '../review/feedback.js';
+import { parsePlan } from '../review/plan-parser.js';
 
 export function createRoutes(ctx: ServerContext): Router {
   const router = Router();
@@ -193,6 +196,170 @@ export function createRoutes(ctx: ServerContext): Router {
   router.delete('/annotations/:id', (req, res) => {
     store.deleteAnnotation(req.params.id);
     res.status(204).end();
+  });
+
+  router.patch('/annotations/:id/resolve', (req, res) => {
+    const annotation = store.getAnnotation(req.params.id);
+    if (!annotation) {
+      res.status(404).json({ error: 'Annotation not found' });
+      return;
+    }
+    store.resolveAnnotationsByIds([req.params.id]);
+    const updated = store.getAnnotation(req.params.id);
+    res.json(updated);
+  });
+
+  // ── Review: Send Feedback ─────────────────────────────────
+
+  // Selectively send annotations as feedback to the LLM
+  router.post('/threads/:threadId/send-feedback', (req, res) => {
+    const { annotationIds } = req.body as { annotationIds: string[] };
+    const threadId = req.params.threadId;
+    const thread = store.getThread(threadId);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+
+    if (!annotationIds || annotationIds.length === 0) {
+      res.status(400).json({ error: 'annotationIds is required' });
+      return;
+    }
+
+    // Get the selected annotations
+    const allAnnotations = store.listAnnotations(threadId);
+    const selected = allAnnotations.filter((a) => annotationIds.includes(a.id) && a.resolved === 0);
+
+    if (selected.length === 0) {
+      res.status(400).json({ error: 'No unresolved annotations found for the given IDs' });
+      return;
+    }
+
+    // Format feedback and inject as a user message
+    const feedback = formatFeedback(selected);
+    const message = store.createMessage(threadId, 'user', feedback);
+
+    // Mark selected annotations as resolved
+    store.resolveAnnotationsByIds(annotationIds);
+
+    // Broadcast the message
+    broadcast(threadId, 'thread_message', message);
+
+    // Trigger LLM session
+    sessionManager.startSession(threadId).catch((err) => {
+      console.error(`[trellis] Session error for thread ${threadId}:`, err);
+    });
+
+    res.status(201).json({ message, resolvedCount: selected.length });
+  });
+
+  // ── Repos: Diff ───────────────────────────────────────────
+
+  router.get('/repos/:id/diff', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    if (!existsSync(repo.path)) {
+      res.status(404).json({ error: 'Repo path not found on disk' });
+      return;
+    }
+
+    try {
+      const baseRef = req.query.base as string | undefined;
+      const diff = await getDiffSummary(repo.path, baseRef);
+      res.json(diff);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get diff' });
+    }
+  });
+
+  router.get('/repos/:id/diff/file', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    const filePath = req.query.path as string;
+    if (!filePath) {
+      res.status(400).json({ error: 'path query parameter is required' });
+      return;
+    }
+
+    try {
+      const baseRef = req.query.base as string | undefined;
+      const fileDiff = await getFileDiff(repo.path, filePath, baseRef);
+      res.json(fileDiff);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get file diff' });
+    }
+  });
+
+  router.post('/repos/:id/stage', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    const { filePath } = req.body;
+    if (!filePath) {
+      res.status(400).json({ error: 'filePath is required' });
+      return;
+    }
+
+    try {
+      await stageFile(repo.path, filePath);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to stage file' });
+    }
+  });
+
+  router.post('/repos/:id/revert', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    const { filePath, baseRef } = req.body;
+    if (!filePath) {
+      res.status(400).json({ error: 'filePath is required' });
+      return;
+    }
+
+    try {
+      await revertFile(repo.path, filePath, baseRef);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to revert file' });
+    }
+  });
+
+  // ── Repos: Plan ───────────────────────────────────────────
+
+  router.get('/repos/:id/plan', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    try {
+      const content = await readPlanFile(repo.path);
+      if (content === null) {
+        res.json({ exists: false, steps: [], raw: '' });
+        return;
+      }
+      const steps = parsePlan(content);
+      res.json({ exists: true, steps, raw: content });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to read plan' });
+    }
   });
 
   // ── Settings ───────────────────────────────────────────────

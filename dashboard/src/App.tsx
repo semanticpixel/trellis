@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatPanel } from './components/chat/ChatPanel';
+import { ReviewPanel } from './components/review/ReviewPanel';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useQuery } from '@tanstack/react-query';
 import type { Thread } from '@shared/types';
@@ -43,15 +44,10 @@ export function App() {
       />
 
       {reviewPanelOpen && (
-        <aside className={styles.reviewPanel}>
-          <div className={styles.reviewHeader}>
-            <button className={styles.reviewTab}>Diff</button>
-            <button className={styles.reviewTab}>Plan</button>
-          </div>
-          <div className={styles.reviewContent}>
-            <p className={styles.placeholder}>Review panel — Phase 2</p>
-          </div>
-        </aside>
+        <ReviewPanel
+          thread={activeThread ?? null}
+          repoId={activeThread?.repo_id ?? null}
+        />
       )}
     </div>
   );

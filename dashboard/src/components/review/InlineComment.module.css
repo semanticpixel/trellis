@@ -1,0 +1,105 @@
+/* ── Inline Comment Form ────────────────────────────────────── */
+
+.container {
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  margin: var(--space-xs) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.typeSelector {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-code);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.typeBtn {
+  flex: 1;
+  padding: 3px var(--space-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.typeBtn:hover {
+  background: var(--bg-hover);
+}
+
+.typeBtnActive {
+  background: var(--bg-primary);
+  color: var(--accent);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.cancelBtn {
+  padding: var(--space-xs) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.cancelBtn:hover {
+  background: var(--bg-hover);
+}
+
+.submitBtn {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-inverse);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.submitBtn:hover {
+  background: var(--accent-hover);
+}
+
+.submitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

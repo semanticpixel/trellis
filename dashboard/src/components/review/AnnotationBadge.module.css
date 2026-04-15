@@ -1,0 +1,101 @@
+/* ── Annotation Badge ───────────────────────────────────────── */
+
+.badge {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  margin: var(--space-xs) 0;
+  font-size: 12px;
+}
+
+.resolved {
+  opacity: 0.5;
+  border-left-color: var(--text-tertiary);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xs);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  cursor: pointer;
+}
+
+.checkbox {
+  cursor: pointer;
+}
+
+.type {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comment {
+  color: var(--accent);
+}
+
+.question {
+  color: var(--warning);
+}
+
+.delete {
+  color: var(--error);
+}
+
+.replace {
+  color: var(--success);
+}
+
+.deleteBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.deleteBtn:hover {
+  color: var(--error);
+}
+
+.text {
+  color: var(--text-primary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.replacement {
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border-primary);
+}
+
+.replacementLabel {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.replacementCode {
+  display: block;
+  margin-top: 2px;
+  padding: var(--space-xs);
+  background: var(--bg-code);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}

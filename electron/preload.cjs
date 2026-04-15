@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Minimal preload — expose only what the renderer needs via IPC
 contextBridge.exposeInMainWorld('api', {

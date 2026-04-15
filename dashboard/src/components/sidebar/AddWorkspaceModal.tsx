@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useCreateWorkspace } from '../../hooks/useWorkspaces';
 import { ColorPicker } from './ColorPicker';
 import { X } from 'lucide-react';
@@ -14,6 +14,7 @@ export function AddWorkspaceModal({ onClose }: AddWorkspaceModalProps) {
   const [color, setColor] = useState('#6e7681');
   const [error, setError] = useState('');
   const createWorkspace = useCreateWorkspace();
+  const dirInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,17 +66,44 @@ export function AddWorkspaceModal({ onClose }: AddWorkspaceModalProps) {
                 type="button"
                 className={styles.browseBtn}
                 onClick={async () => {
-                  const selected = await window.api?.dialog.openDirectory();
-                  if (selected) {
-                    setPath(selected);
-                    if (!name.trim()) {
-                      setName(selected.split('/').pop() ?? '');
+                  if (window.api?.dialog) {
+                    const selected = await window.api.dialog.openDirectory();
+                    if (selected) {
+                      setPath(selected);
+                      if (!name.trim()) {
+                        setName(selected.split('/').pop() ?? '');
+                      }
                     }
+                  } else {
+                    dirInputRef.current?.click();
                   }
                 }}
               >
                 Browse
               </button>
+              <input
+                ref={dirInputRef}
+                type="file"
+                // @ts-expect-error -- webkitdirectory is not in React's input type defs
+                webkitdirectory=""
+                className={styles.hiddenInput}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    // webkitRelativePath gives "dirName/file" — extract the dir name
+                    const relPath = file.webkitRelativePath;
+                    const dirName = relPath.split('/')[0] ?? '';
+                    if (dirName) {
+                      setPath(dirName);
+                      if (!name.trim()) {
+                        setName(dirName);
+                      }
+                    }
+                  }
+                  // Reset so the same folder can be re-selected
+                  e.target.value = '';
+                }}
+              />
             </div>
           </label>
 

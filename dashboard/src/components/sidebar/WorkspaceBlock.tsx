@@ -46,7 +46,18 @@ export function WorkspaceBlock({ workspace, activeThreadId, onSelectThread }: Wo
 
   return (
     <div className={styles.block}>
-      <button className={styles.header} onClick={() => setExpanded(!expanded)}>
+      <div
+        className={styles.header}
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
+      >
         <span className={styles.colorDot} style={{ backgroundColor: workspace.color }} />
         <span className={styles.name}>{workspace.name}</span>
         <span className={styles.chevron}>
@@ -59,7 +70,7 @@ export function WorkspaceBlock({ workspace, activeThreadId, onSelectThread }: Wo
         >
           <Plus size={12} />
         </button>
-      </button>
+      </div>
 
       {expanded && (
         <div className={styles.body}>

@@ -268,6 +268,19 @@ export class Store {
     return result.changes;
   }
 
+  resolveAnnotationsByIds(ids: string[]): number {
+    if (ids.length === 0) return 0;
+    const placeholders = ids.map(() => '?').join(',');
+    const result = this.db.prepare(
+      `UPDATE annotations SET resolved = 1 WHERE id IN (${placeholders}) AND resolved = 0`
+    ).run(...ids);
+    return result.changes;
+  }
+
+  getAnnotation(id: string): Annotation | undefined {
+    return this.db.prepare('SELECT * FROM annotations WHERE id = ?').get(id) as Annotation | undefined;
+  }
+
   deleteAnnotation(id: string): void {
     this.db.prepare('DELETE FROM annotations WHERE id = ?').run(id);
   }

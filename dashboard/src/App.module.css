@@ -135,46 +135,6 @@
   cursor: not-allowed;
 }
 
-/* ── Review Panel ───────────────────────────────────────────── */
-
-.reviewPanel {
-  width: 380px;
-  min-width: 380px;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-sidebar);
-  border-left: 1px solid var(--border-primary);
-}
-
-.reviewHeader {
-  display: flex;
-  gap: 4px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-primary);
-  /* macOS traffic lights offset */
-  padding-top: 38px;
-}
-
-.reviewTab {
-  padding: 4px 12px;
-  background: transparent;
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.reviewTab:hover {
-  background: var(--bg-hover);
-}
-
-.reviewContent {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
-
 /* ── Shared ─────────────────────────────────────────────────── */
 
 .placeholder {

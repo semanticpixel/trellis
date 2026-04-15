@@ -1,0 +1,89 @@
+/* ── Plan Tab ───────────────────────────────────────────────── */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.steps {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xs) 0;
+}
+
+.stepBlock {
+  /* container for step + annotations */
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-left: 2px solid transparent;
+  min-height: 28px;
+}
+
+.step:hover {
+  background: var(--bg-hover);
+}
+
+.stepSelected {
+  background: var(--accent-subtle);
+  border-left-color: var(--accent);
+}
+
+.stepAnnotated {
+  /* subtle indicator */
+}
+
+.stepContent {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.annotationCount {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  background: var(--accent);
+  color: var(--text-inverse);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--space-sm);
+}
+
+.stepAnnotation {
+  padding-right: var(--space-sm);
+}
+
+.commentForm {
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+}
+
+.placeholder {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+  padding: var(--space-xl);
+  line-height: 1.6;
+}

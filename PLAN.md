@@ -1,8 +1,10 @@
 # Trellis — Multi-Workspace LLM Development Environment
 
-## Current Status (last updated: 2026-04-14)
+## Current Status (last updated: 2026-04-15)
 
-### What's done (Phase 1 complete)
+### What's done (Phase 1 + Phase 2 complete)
+
+**Phase 1 — Foundation + Chat + Sidebar:**
 - **Project scaffolding**: package.json, tsconfig, Electron config, Vite config, .gitignore, .nvmrc
 - **Documentation**: README.md, CLAUDE.md, ARCHITECTURE.md, PLAN.md (this file)
 - **Shared types**: `src/shared/types.ts` — all DB entities, WS envelope, LLM types, API request/response types
@@ -16,11 +18,25 @@
 - **Design tokens**: `dashboard/src/ui/tokens.css` — full color system (light + dark), spacing, radii, scrollbar styling, global reset
 - **LLM adapters**: `src/llm/types.ts`, `adapter.ts`, `anthropic.ts`, `openai.ts` — adapter registry, Anthropic + OpenAI streaming implementations with normalized StreamEvent output
 - **Tool implementations**: `src/tools/types.ts`, `registry.ts`, `validate-path.ts`, `read-file.ts`, `write-file.ts`, `edit-file.ts`, `bash.ts`, `list-files.ts` — all 5 tools with workspace path sandboxing + symlink traversal protection
-- **Session runner**: `src/session/manager.ts`, `runner.ts` — prompt->LLM->tool loop, concurrent sessions via Map<threadId, AbortController>, annotation injection, auto system prompt
+- **Session runner**: `src/session/manager.ts`, `runner.ts` — prompt->LLM->tool loop, concurrent sessions via Map<threadId, AbortController>, auto system prompt
 - **Sidebar tree view**: `Sidebar.tsx`, `TreeView.tsx`, `WorkspaceBlock.tsx`, `RepoRow.tsx`, `ThreadRow.tsx`, `AddWorkspaceModal.tsx`, `ColorPicker.tsx`, `MissingNotice.tsx` — full tree sidebar with workspace/repo/thread hierarchy, color dots, branch pills, status badges, missing path detection
 - **Chat panel**: `ChatPanel.tsx`, `ChatComposer.tsx`, `ChatMessageList.tsx`, `ChatMessage.tsx`, `ToolCallBlock.tsx`, `ModelSelector.tsx` — streaming chat with markdown rendering, tool call display, auto-scroll, thinking animation
 - **Hooks**: `useWebSocket.ts` (singleton connection, auto-reconnect, exponential backoff), `useChatStream.ts` (per-thread stream state), `useWorkspaces.ts` (React Query hooks for all API endpoints)
-- **App shell**: `dashboard/src/App.tsx` — wired up with real Sidebar + ChatPanel components, thread selection state
+- **App shell**: `dashboard/src/App.tsx` — wired up with real Sidebar + ChatPanel + ReviewPanel components, thread selection state
+
+**Phase 2 — Review Panel + Inline Comments:**
+- **Git operations**: `src/git/operations.ts` — diff summary (numstat + name-status), per-file diff (original vs modified), stage, unstage, revert, branch detection, plan file reading
+- **Review module**: `src/review/plan-parser.ts` (parse .trellis-plan.md into selectable steps), `src/review/feedback.ts` (format annotations as LLM context), `src/review/annotations.ts` (annotation query helpers)
+- **New API routes**: `GET /repos/:id/diff` (diff summary), `GET /repos/:id/diff/file` (per-file original+modified), `POST /repos/:id/stage`, `POST /repos/:id/revert`, `GET /repos/:id/plan` (parsed plan steps), `PATCH /annotations/:id/resolve`, `POST /threads/:id/send-feedback` (selective annotation injection + LLM trigger)
+- **Store additions**: `resolveAnnotationsByIds()`, `getAnnotation()` methods
+- **ReviewPanel**: `ReviewPanel.tsx` — toggleable right panel with Diff/Plan tab bar, "Send feedback" button with annotation selection (select all / individual checkboxes)
+- **DiffTab**: `DiffTab.tsx` — Monaco DiffEditor (lazy-loaded) with inline diff mode, glyph margin click to open comment form, viewZones for inline annotation display, resolved annotations grayed out
+- **DiffFileList**: `DiffFileList.tsx` — changed files with +N/-M counts, status indicators (A/M/D/R), stage/revert actions per file
+- **InlineComment**: `InlineComment.tsx` — annotation type selector (comment/question/delete/replace), multi-line markdown input, Cmd+Enter submit, Escape cancel
+- **AnnotationBadge**: `AnnotationBadge.tsx` — inline annotation display with type label, checkbox for feedback selection, delete button, replacement text display, resolved grayed-out state
+- **PlanTab**: `PlanTab.tsx` — plan step viewer with click/shift-click selection, inline annotation forms below selected steps, step depth indentation, annotation count badges
+- **Review hooks**: `useReview.ts` — useAnnotations, useCreateAnnotation, useDeleteAnnotation, useResolveAnnotation, useSendFeedback, useDiffSummary, useFileDiff, useStageFile, useRevertFile, usePlan
+- **CSS Modules**: All review components use CSS Modules with design token variables, no inline styles
 
 ### What's verified
 - Backend compiles (`tsc --noEmit` passes)
@@ -30,11 +46,10 @@
 - Creating a workspace auto-discovers git repos (tested with w0 — found 12 repos)
 - pnpm install + native module builds work (better-sqlite3, node-pty, electron)
 
-### What's next (Phase 2)
-Phase 1 is complete. Next up is Phase 2: Review Panel + Inline Comments.
+### What's next (Phase 3)
+Phase 2 is complete. Next up is Phase 3: Git Operations + Terminal.
 
-### After Phase 1: future phases
-- **Phase 2**: Review panel (Monaco DiffEditor with inline comments, plan annotations)
+### After Phase 2: future phases
 - **Phase 3**: Git operations (branch popover, embedded terminal)
 - **Phase 4**: Polish (Ollama/custom adapters, settings UI, flat sidebar mode, keyboard shortcuts)
 

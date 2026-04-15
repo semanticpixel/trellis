@@ -33,25 +33,9 @@ export async function runThread(
   // Build system prompt
   const systemPrompt = thread.system_prompt ?? buildDefaultSystemPrompt(workspacePath);
 
-  // Inject unresolved annotations as context
-  const annotations = store.listAnnotations(threadId, true);
-  let annotationContext = '';
-  if (annotations.length > 0) {
-    annotationContext = '\n\n--- Feedback from reviewer ---\n' +
-      annotations.map((a) => {
-        const prefix = a.annotation_type === 'delete'
-          ? '[DELETE]'
-          : a.annotation_type === 'replace'
-          ? '[REPLACE]'
-          : a.annotation_type === 'question'
-          ? '[QUESTION]'
-          : '[COMMENT]';
-        const target = a.target_type === 'diff_line' ? `on ${a.target_ref}` : `on step ${a.target_ref}`;
-        const replacement = a.replacement ? `\nReplacement: ${a.replacement}` : '';
-        return `${prefix} ${target}: ${a.text}${replacement}`;
-      }).join('\n');
-    store.markAnnotationsResolved(threadId);
-  }
+  // Annotation context is no longer auto-injected here.
+  // Users send feedback explicitly via POST /threads/:id/send-feedback,
+  // which injects selected annotations as a user message before triggering the session.
 
   store.updateThreadStatus(threadId, 'running');
   broadcast(threadId, 'thread_status', { status: 'running' });
@@ -72,18 +56,6 @@ export async function runThread(
         toolName: m.tool_name ?? undefined,
         toolUseId: m.tool_use_id ?? undefined,
       }));
-
-      // Inject annotation context into the last user message
-      if (annotationContext && messages.length > 0) {
-        const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
-        if (lastUserIdx !== -1) {
-          messages[lastUserIdx] = {
-            ...messages[lastUserIdx],
-            content: messages[lastUserIdx].content + annotationContext,
-          };
-          annotationContext = ''; // only inject once
-        }
-      }
 
       // Stream from LLM
       let assistantText = '';

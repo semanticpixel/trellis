@@ -1,0 +1,133 @@
+/* ── Diff Tab ───────────────────────────────────────────────── */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editorContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.editorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-code);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.editorFileName {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.editorHint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.editor {
+  flex: 1;
+  min-height: 200px;
+}
+
+.inlineCommentContainer {
+  padding: var(--space-sm);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.inlineCommentLine {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-xs);
+}
+
+.annotationList {
+  border-top: 1px solid var(--border-primary);
+  padding: var(--space-sm);
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.annotationRow {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  margin-bottom: var(--space-xs);
+}
+
+.annotationLineRef {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  min-width: 32px;
+  flex-shrink: 0;
+  padding-top: var(--space-sm);
+}
+
+.placeholder {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+/* ── ViewZone styles (injected into Monaco) ─────────────────── */
+
+.viewZoneContainer {
+  padding: 4px 8px;
+  border-left: 3px solid var(--accent, #2563eb);
+  background: var(--accent-subtle, #eff6ff);
+}
+
+.viewZoneBadge {
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.viewZoneResolved {
+  opacity: 0.5;
+}
+
+.viewZoneBadgeHeader {
+  margin-bottom: 2px;
+}
+
+.viewZoneBadgeType {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent, #2563eb);
+}
+
+.viewZoneBadgeText {
+  color: var(--text-primary, #1a1a1a);
+  white-space: pre-wrap;
+}
+
+.viewZoneBadgeReplacement {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-primary, #e5e5e5);
+}
+
+.viewZoneBadgeReplacement code {
+  font-family: monospace;
+  font-size: 11px;
+  background: var(--bg-code, #f5f5f5);
+  padding: 2px 4px;
+  border-radius: 2px;
+}

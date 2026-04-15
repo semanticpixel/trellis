@@ -1,36 +1,37 @@
 # Trellis — Multi-Workspace LLM Development Environment
 
-## Current Status (last updated: 2026-04-12)
+## Current Status (last updated: 2026-04-14)
 
-### What's done (Phase 1 foundation)
+### What's done (Phase 1 complete)
 - **Project scaffolding**: package.json, tsconfig, Electron config, Vite config, .gitignore, .nvmrc
 - **Documentation**: README.md, CLAUDE.md, ARCHITECTURE.md, PLAN.md (this file)
 - **Shared types**: `src/shared/types.ts` — all DB entities, WS envelope, LLM types, API request/response types
 - **Constants**: `src/shared/constants.ts` — server port, defaults, limits
 - **SQLite database**: `src/db/store.ts` — full schema (workspaces, repos, threads, messages, annotations, providers, settings), WAL mode, all CRUD methods
-- **Express API**: `src/api/routes.ts` — REST routes for workspaces (with auto-scan for git repos), repos (with missing path detection), threads, messages (with auto-title), annotations, settings, path health check
-- **WebSocket server**: `src/api/server.ts` — broadcast with threadId envelope, backpressure handling
+- **Express API**: `src/api/routes.ts` — REST routes for workspaces (with auto-scan for git repos), repos (with missing path detection), threads, messages (with auto-title + SessionRunner trigger), annotations, settings, path health check
+- **WebSocket server**: `src/api/server.ts` — broadcast with threadId envelope, backpressure handling, SessionManager integration
 - **Electron shell**: `electron/main.mjs` — context isolation, sandbox, hiddenInset titlebar, safeStorage IPC for API keys
 - **Preload bridge**: `electron/preload.mjs` — keys:store/retrieve/delete/has via IPC
 - **Dev scripts**: `scripts/electron-dev.mjs` — starts backend + Vite + Electron
-- **Dashboard entry**: `dashboard/src/main.tsx` — React 19 + QueryClientProvider
-- **App shell**: `dashboard/src/App.tsx` + `App.module.css` — three-column layout (sidebar 240px | chat flex | review 380px toggleable)
 - **Design tokens**: `dashboard/src/ui/tokens.css` — full color system (light + dark), spacing, radii, scrollbar styling, global reset
+- **LLM adapters**: `src/llm/types.ts`, `adapter.ts`, `anthropic.ts`, `openai.ts` — adapter registry, Anthropic + OpenAI streaming implementations with normalized StreamEvent output
+- **Tool implementations**: `src/tools/types.ts`, `registry.ts`, `validate-path.ts`, `read-file.ts`, `write-file.ts`, `edit-file.ts`, `bash.ts`, `list-files.ts` — all 5 tools with workspace path sandboxing + symlink traversal protection
+- **Session runner**: `src/session/manager.ts`, `runner.ts` — prompt->LLM->tool loop, concurrent sessions via Map<threadId, AbortController>, annotation injection, auto system prompt
+- **Sidebar tree view**: `Sidebar.tsx`, `TreeView.tsx`, `WorkspaceBlock.tsx`, `RepoRow.tsx`, `ThreadRow.tsx`, `AddWorkspaceModal.tsx`, `ColorPicker.tsx`, `MissingNotice.tsx` — full tree sidebar with workspace/repo/thread hierarchy, color dots, branch pills, status badges, missing path detection
+- **Chat panel**: `ChatPanel.tsx`, `ChatComposer.tsx`, `ChatMessageList.tsx`, `ChatMessage.tsx`, `ToolCallBlock.tsx`, `ModelSelector.tsx` — streaming chat with markdown rendering, tool call display, auto-scroll, thinking animation
+- **Hooks**: `useWebSocket.ts` (singleton connection, auto-reconnect, exponential backoff), `useChatStream.ts` (per-thread stream state), `useWorkspaces.ts` (React Query hooks for all API endpoints)
+- **App shell**: `dashboard/src/App.tsx` — wired up with real Sidebar + ChatPanel components, thread selection state
 
 ### What's verified
 - Backend compiles (`tsc --noEmit` passes)
 - Dashboard compiles (`tsc --noEmit` passes)
+- Full `pnpm typecheck` passes (both backend + dashboard)
 - Server starts on port 3457, health endpoint responds
 - Creating a workspace auto-discovers git repos (tested with w0 — found 12 repos)
 - pnpm install + native module builds work (better-sqlite3, node-pty, electron)
 
-### What's next (remaining Phase 1 work)
-1. **LLM adapters** — `src/llm/types.ts`, `adapter.ts`, `anthropic.ts`, `openai.ts`, `stream-handler.ts`
-2. **Tool implementations** — `src/tools/types.ts`, `registry.ts`, `read-file.ts`, `write-file.ts`, `edit-file.ts`, `bash.ts`, `list-files.ts`
-3. **Session runner** — `src/session/manager.ts`, `runner.ts` (prompt -> LLM -> tool loop with concurrent sessions)
-4. **Sidebar tree view** — `Sidebar.tsx`, `TreeView.tsx`, `WorkspaceBlock.tsx`, `RepoRow.tsx`, `ThreadRow.tsx`, `AddWorkspaceModal.tsx`, `ColorPicker.tsx`, `MissingNotice.tsx`
-5. **Chat panel** — `ChatPanel.tsx`, `ChatComposer.tsx`, `ChatMessageList.tsx`, `ChatMessage.tsx`, `CodeBlock.tsx`, `ToolCallBlock.tsx`, `ModelSelector.tsx`, `useWebSocket.ts`, `useChatStream.ts`
-6. **Wire it up** — connect POST `/api/threads/:id/messages` to the SessionRunner so sending a message triggers the LLM
+### What's next (Phase 2)
+Phase 1 is complete. Next up is Phase 2: Review Panel + Inline Comments.
 
 ### After Phase 1: future phases
 - **Phase 2**: Review panel (Monaco DiffEditor with inline comments, plan annotations)

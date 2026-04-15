@@ -5,7 +5,7 @@ import { join, basename } from 'path';
 
 export function createRoutes(ctx: ServerContext): Router {
   const router = Router();
-  const { store, broadcast } = ctx;
+  const { store, broadcast, sessionManager } = ctx;
 
   // ── Workspaces ─────────────────────────────────────────────
 
@@ -170,8 +170,11 @@ export function createRoutes(ctx: ServerContext): Router {
     // Broadcast the user message
     broadcast(threadId, 'thread_message', message);
 
-    // TODO: Phase 1 — trigger SessionRunner here
-    // For now, just return the stored message
+    // Trigger the LLM session (fire-and-forget — streams via WebSocket)
+    sessionManager.startSession(threadId).catch((err) => {
+      console.error(`[trellis] Session error for thread ${threadId}:`, err);
+    });
+
     res.status(201).json(message);
   });
 

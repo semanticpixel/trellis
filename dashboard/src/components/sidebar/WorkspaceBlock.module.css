@@ -1,0 +1,76 @@
+.block {
+  margin-bottom: 2px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 6px var(--space-sm) 6px var(--space-md);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.header:hover {
+  background: var(--bg-hover);
+}
+
+.colorDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
+.addThread {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.header:hover .addThread {
+  opacity: 1;
+}
+
+.addThread:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.body {
+  padding-left: 10px;
+}
+
+.separator {
+  height: 1px;
+  background: var(--border-primary);
+  margin: var(--space-xs) var(--space-sm);
+}

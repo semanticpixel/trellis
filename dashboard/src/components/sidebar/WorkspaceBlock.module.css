@@ -15,6 +15,14 @@
   font-weight: 500;
   color: var(--text-primary);
   text-align: left;
+  user-select: none;
+  outline: none;
+}
+
+.header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
 
 .header:hover {

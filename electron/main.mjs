@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -33,6 +33,16 @@ ipcMain.handle('keys:delete', (_event, name) => {
 
 ipcMain.handle('keys:has', (_event, name) => {
   return keyStore.has(name);
+});
+
+// ── Native Dialogs ────────────────────────────────────────────
+
+ipcMain.handle('dialog:openDirectory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
 });
 
 // ── Window Creation ────────────────────────────────────────────

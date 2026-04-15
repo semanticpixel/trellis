@@ -41,9 +41,10 @@ export function parsePlan(markdown: string): PlanStep[] {
         endLine = j;
       }
 
+      const content = lines.slice(i, endLine + 1).join('\n').trim();
       steps.push({
         id: `step-${stepIndex++}`,
-        content: trimmed,
+        content,
         depth,
         lineStart: i,
         lineEnd: endLine,

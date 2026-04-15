@@ -241,8 +241,8 @@ export class Store {
 
   // ── Annotations ────────────────────────────────────────────
 
-  listAnnotations(threadId: string, resolvedOnly = false): Annotation[] {
-    if (resolvedOnly) {
+  listAnnotations(threadId: string, unresolvedOnly = false): Annotation[] {
+    if (unresolvedOnly) {
       return this.db.prepare(
         'SELECT * FROM annotations WHERE thread_id = ? AND resolved = 0 ORDER BY created_at'
       ).all(threadId) as Annotation[];

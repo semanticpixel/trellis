@@ -1,52 +1,47 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { Sidebar } from './components/sidebar/Sidebar';
+import { ChatPanel } from './components/chat/ChatPanel';
+import { useWorkspaces } from './hooks/useWorkspaces';
+import { useQuery } from '@tanstack/react-query';
+import type { Thread } from '@shared/types';
 import styles from './App.module.css';
 
 export function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const { data: workspaces } = useWorkspaces();
+
+  const { data: activeThread } = useQuery<Thread>({
+    queryKey: ['thread', activeThreadId],
+    queryFn: async () => {
+      const res = await fetch(`/api/threads/${activeThreadId}`);
+      return res.json();
+    },
+    enabled: !!activeThreadId,
+  });
+
+  const activeWorkspace = workspaces?.find((w) => w.id === activeWorkspaceId);
+
+  const handleSelectThread = useCallback((threadId: string, workspaceId: string) => {
+    setActiveThreadId(threadId);
+    setActiveWorkspaceId(workspaceId);
+  }, []);
 
   return (
     <div className={styles.shell}>
-      {/* Sidebar */}
-      <aside className={styles.sidebar}>
-        <div className={styles.sidebarHeader}>
-          <span className={styles.logo}>Trellis</span>
-        </div>
-        <div className={styles.sidebarContent}>
-          <p className={styles.placeholder}>Add a workspace to get started</p>
-        </div>
-        <div className={styles.sidebarFooter}>
-          <button className={styles.addWorkspace}>+ Add workspace</button>
-        </div>
-      </aside>
+      <Sidebar
+        activeThreadId={activeThreadId}
+        onSelectThread={handleSelectThread}
+      />
 
-      {/* Chat Panel */}
-      <main className={styles.chat}>
-        <div className={styles.chatHeader}>
-          <span className={styles.threadTitle}>No thread selected</span>
-          <div className={styles.chatActions}>
-            <button
-              className={styles.reviewToggle}
-              onClick={() => setReviewPanelOpen(!reviewPanelOpen)}
-              title="Toggle review panel"
-            >
-              {reviewPanelOpen ? '◧' : '◨'}
-            </button>
-          </div>
-        </div>
-        <div className={styles.chatMessages}>
-          <p className={styles.placeholder}>Select or create a thread to start chatting</p>
-        </div>
-        <div className={styles.chatComposer}>
-          <textarea
-            className={styles.composerInput}
-            placeholder="Type a message..."
-            rows={3}
-            disabled
-          />
-        </div>
-      </main>
+      <ChatPanel
+        thread={activeThread ?? null}
+        workspaceColor={activeWorkspace?.color ?? '#6e7681'}
+        onToggleReview={() => setReviewPanelOpen(!reviewPanelOpen)}
+        reviewOpen={reviewPanelOpen}
+      />
 
-      {/* Review Panel (toggleable) */}
       {reviewPanelOpen && (
         <aside className={styles.reviewPanel}>
           <div className={styles.reviewHeader}>

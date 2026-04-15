@@ -1,0 +1,13 @@
+.selector {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.label {
+  font-weight: 500;
+}

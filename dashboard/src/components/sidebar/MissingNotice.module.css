@@ -1,0 +1,47 @@
+.notice {
+  border-top: 1px solid var(--border-primary);
+  padding: var(--space-sm);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--warning);
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+}
+
+.summary:hover {
+  background: var(--bg-hover);
+}
+
+.details {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+
+.itemName {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.itemPath {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

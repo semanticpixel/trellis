@@ -3,6 +3,7 @@ import { createServer as createHttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import { Store } from '../db/store.js';
+import { SessionManager } from '../session/manager.js';
 import { createRoutes } from './routes.js';
 import { WS_PATH, WS_OVERFLOW_QUEUE_MAX } from '../shared/constants.js';
 import type { WSMessage, WSEventType } from '../shared/types.js';
@@ -10,6 +11,7 @@ import type { WSMessage, WSEventType } from '../shared/types.js';
 export interface ServerContext {
   store: Store;
   broadcast: (threadId: string, type: WSEventType, data: unknown) => void;
+  sessionManager: SessionManager;
 }
 
 export function createServer(store: Store, port: number): { httpServer: ReturnType<typeof createHttpServer>; wss: WebSocketServer; app: ReturnType<typeof express> } {
@@ -49,8 +51,11 @@ export function createServer(store: Store, port: number): { httpServer: ReturnTy
     ws.on('error', () => clients.delete(ws));
   });
 
+  // Session manager for LLM sessions
+  const sessionManager = new SessionManager(store, broadcast);
+
   // Server context passed to routes
-  const ctx: ServerContext = { store, broadcast };
+  const ctx: ServerContext = { store, broadcast, sessionManager };
 
   // Mount API routes
   app.use('/api', createRoutes(ctx));

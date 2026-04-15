@@ -1,0 +1,54 @@
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-primary);
+}
+
+.header {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  padding-top: 38px; /* macOS traffic lights */
+}
+
+.logo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm) 0;
+}
+
+.placeholder {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.footer {
+  padding: var(--space-sm);
+  border-top: 1px solid var(--border-primary);
+}
+
+.addButton {
+  width: 100%;
+  padding: var(--space-sm);
+  background: transparent;
+  border: 1px dashed var(--border-secondary);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.addButton:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-secondary);
+}

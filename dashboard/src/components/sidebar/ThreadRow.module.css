@@ -1,0 +1,94 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: 3px var(--space-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-primary);
+  text-align: left;
+  border-radius: var(--radius-sm);
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.active {
+  background: var(--bg-active);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.hollow {
+  background: transparent;
+  border: 1.5px solid var(--text-tertiary);
+}
+
+.status_running {
+  background: var(--status-running);
+}
+
+.status_awaiting_approval {
+  background: var(--status-approval);
+}
+
+.status_done {
+  background: var(--status-done);
+}
+
+.status_error {
+  background: var(--status-error);
+}
+
+.hollow.status_running {
+  background: transparent;
+  border-color: var(--status-running);
+}
+
+.hollow.status_awaiting_approval {
+  background: transparent;
+  border-color: var(--status-approval);
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--border-secondary);
+  border-top-color: var(--status-running);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.approvalBadge {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--success-subtle);
+  color: var(--success);
+  flex-shrink: 0;
+  font-weight: 500;
+}

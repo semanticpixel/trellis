@@ -1,0 +1,22 @@
+.picker {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.swatch:hover {
+  border-color: var(--text-tertiary);
+}
+
+.active {
+  border-color: var(--text-primary);
+}

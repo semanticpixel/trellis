@@ -1,0 +1,98 @@
+.repo {
+  margin-bottom: 1px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: 4px var(--space-sm) 4px var(--space-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.branchPill {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addThread {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.row:hover .addThread {
+  opacity: 1;
+}
+
+.addThread:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.threads {
+  padding-left: var(--space-lg);
+}
+
+.empty {
+  display: block;
+  padding: 2px var(--space-sm);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.rowMissing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px var(--space-sm);
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.missingName {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}

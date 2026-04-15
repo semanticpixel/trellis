@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('api', {
     has: (name) => ipcRenderer.invoke('keys:has', name),
   },
 
+  // Native dialogs
+  dialog: {
+    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+  },
+
   // Platform info
   platform: process.platform,
 });

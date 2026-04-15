@@ -76,6 +76,30 @@
   border-color: var(--accent);
 }
 
+.pathRow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.pathRow .input {
+  flex: 1;
+}
+
+.browseBtn {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.browseBtn:hover {
+  background: var(--bg-active);
+}
+
 .error {
   color: var(--error);
   font-size: 12px;

@@ -54,12 +54,29 @@ export function AddWorkspaceModal({ onClose }: AddWorkspaceModalProps) {
 
           <label className={styles.label}>
             Path
-            <input
-              className={styles.input}
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              placeholder="e.g. ~/workspace/project/w0"
-            />
+            <div className={styles.pathRow}>
+              <input
+                className={styles.input}
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                placeholder="e.g. ~/workspace/project/w0"
+              />
+              <button
+                type="button"
+                className={styles.browseBtn}
+                onClick={async () => {
+                  const selected = await window.api?.dialog.openDirectory();
+                  if (selected) {
+                    setPath(selected);
+                    if (!name.trim()) {
+                      setName(selected.split('/').pop() ?? '');
+                    }
+                  }
+                }}
+              >
+                Browse
+              </button>
+            </div>
           </label>
 
           <label className={styles.label}>

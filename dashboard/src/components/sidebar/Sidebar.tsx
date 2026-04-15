@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWorkspaces, usePathCheck } from '../../hooks/useWorkspaces';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import { TreeView } from './TreeView';
 import { AddWorkspaceModal } from './AddWorkspaceModal';
 import { MissingNotice } from './MissingNotice';
+import type { WSMessage } from '@shared/types';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -14,6 +17,14 @@ export function Sidebar({ activeThreadId, onSelectThread }: SidebarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const { data: workspaces } = useWorkspaces();
   const { data: pathCheck } = usePathCheck();
+  const qc = useQueryClient();
+
+  // Listen for repo_update events to refresh branch pills
+  useWebSocket(useCallback((msg: WSMessage) => {
+    if (msg.type === 'repo_update') {
+      qc.invalidateQueries({ queryKey: ['repos'] });
+    }
+  }, [qc]));
 
   return (
     <aside className={styles.sidebar}>

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { Thread } from '@shared/types';
 import type { RepoWithStatus } from '../../hooks/useWorkspaces';
 import { ThreadRow } from './ThreadRow';
+import { BranchPopover } from '../git/BranchPopover';
 import { ChevronDown, ChevronRight, Plus, AlertTriangle } from 'lucide-react';
 import styles from './RepoRow.module.css';
 
@@ -16,6 +17,13 @@ interface RepoRowProps {
 export function RepoRow({ repo, threads, activeThreadId, onSelectThread, onNewThread }: RepoRowProps) {
   const containsActive = threads.some((t) => t.id === activeThreadId);
   const [expanded, setExpanded] = useState(containsActive || threads.length > 0);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const branchPillRef = useRef<HTMLSpanElement>(null);
+
+  const handleBranchClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPopoverOpen(true);
+  }, []);
 
   if (repo.missing) {
     return (
@@ -34,7 +42,15 @@ export function RepoRow({ repo, threads, activeThreadId, onSelectThread, onNewTh
         </span>
         <span className={styles.name}>{repo.name}</span>
         {repo.current_branch && (
-          <span className={styles.branchPill}>{repo.current_branch}</span>
+          <span
+            ref={branchPillRef}
+            className={styles.branchPill}
+            onClick={handleBranchClick}
+            role="button"
+            tabIndex={-1}
+          >
+            {repo.current_branch}
+          </span>
         )}
         <button
           className={styles.addThread}
@@ -44,6 +60,15 @@ export function RepoRow({ repo, threads, activeThreadId, onSelectThread, onNewTh
           <Plus size={11} />
         </button>
       </button>
+
+      {popoverOpen && branchPillRef.current && (
+        <BranchPopover
+          repoId={repo.id}
+          currentBranch={repo.current_branch}
+          anchorRect={branchPillRef.current.getBoundingClientRect()}
+          onClose={() => setPopoverOpen(false)}
+        />
+      )}
 
       {expanded && (
         <div className={styles.threads}>

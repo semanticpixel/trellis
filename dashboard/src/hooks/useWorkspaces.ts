@@ -114,6 +114,55 @@ export function useSendMessage() {
   });
 }
 
+// ── Branches ───────────────────────────────────────────────
+
+export interface BranchInfo {
+  name: string;
+  isCurrent: boolean;
+  lastCommitDate: string;
+  lastCommitMessage: string;
+}
+
+export function useBranches(repoId: string | null) {
+  return useQuery<BranchInfo[]>({
+    queryKey: ['branches', repoId],
+    queryFn: () => fetchJson(`${API}/repos/${repoId}/branches`),
+    enabled: !!repoId,
+  });
+}
+
+export function useCheckoutBranch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ repoId, branch }: { repoId: string; branch: string }) =>
+      fetchJson<{ ok: boolean; branch: string }>(`${API}/repos/${repoId}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch }),
+      }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['branches', variables.repoId] });
+      qc.invalidateQueries({ queryKey: ['repos'] });
+    },
+  });
+}
+
+export function useCreateBranch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ repoId, branch, startPoint }: { repoId: string; branch: string; startPoint?: string }) =>
+      fetchJson<{ ok: boolean; branch: string }>(`${API}/repos/${repoId}/create-branch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch, startPoint }),
+      }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['branches', variables.repoId] });
+      qc.invalidateQueries({ queryKey: ['repos'] });
+    },
+  });
+}
+
 // ── Path Health ─────────────────────────────────────────────
 
 export function usePathCheck() {

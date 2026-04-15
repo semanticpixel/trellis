@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { ServerContext } from './server.js';
 import { existsSync, readdirSync, statSync } from 'fs';
 import { join, basename } from 'path';
-import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile } from '../git/operations.js';
+import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile, listBranches, checkoutBranch, createBranch, getCurrentBranch } from '../git/operations.js';
 import { formatFeedback } from '../review/feedback.js';
 import { parsePlan } from '../review/plan-parser.js';
 
@@ -359,6 +359,78 @@ export function createRoutes(ctx: ServerContext): Router {
       res.json({ exists: true, steps, raw: content });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to read plan' });
+    }
+  });
+
+  // ── Repos: Branches ────────────────────────────────────────
+
+  router.get('/repos/:id/branches', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    if (!existsSync(repo.path)) {
+      res.status(404).json({ error: 'Repo path not found on disk' });
+      return;
+    }
+
+    try {
+      const branches = await listBranches(repo.path);
+      res.json(branches);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list branches' });
+    }
+  });
+
+  router.post('/repos/:id/checkout', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    const { branch } = req.body;
+    if (!branch) {
+      res.status(400).json({ error: 'branch is required' });
+      return;
+    }
+
+    try {
+      await checkoutBranch(repo.path, branch);
+      const current = await getCurrentBranch(repo.path);
+      // Update repo record in DB
+      store.updateRepoBranch(repo.id, current);
+      // Broadcast repo_update so sidebar + diff panel refresh
+      broadcast('*', 'repo_update', { repoId: repo.id, branch: current });
+      res.json({ ok: true, branch: current });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to checkout branch' });
+    }
+  });
+
+  router.post('/repos/:id/create-branch', async (req, res) => {
+    const repo = store.getRepo(req.params.id);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    const { branch, startPoint } = req.body;
+    if (!branch) {
+      res.status(400).json({ error: 'branch is required' });
+      return;
+    }
+
+    try {
+      await createBranch(repo.path, branch, startPoint);
+      const current = await getCurrentBranch(repo.path);
+      store.updateRepoBranch(repo.id, current);
+      broadcast('*', 'repo_update', { repoId: repo.id, branch: current });
+      res.json({ ok: true, branch: current });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create branch' });
     }
   });
 

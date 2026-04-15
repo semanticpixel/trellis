@@ -97,7 +97,37 @@ export type WSEventType =
   | 'thread_status'
   | 'thread_error'
   | 'repo_update'
-  | 'workspace_update';
+  | 'workspace_update'
+  | 'terminal_output'
+  | 'terminal_exit';
+
+// ── Terminal Protocol (client → server) ───────────────────────
+
+export interface TerminalStartMessage {
+  type: 'terminal_start';
+  workspaceId: string;
+  cwd: string; // repo path or workspace path
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalInputMessage {
+  type: 'terminal_input';
+  workspaceId: string;
+  data: string;
+}
+
+export interface TerminalResizeMessage {
+  type: 'terminal_resize';
+  workspaceId: string;
+  cols: number;
+  rows: number;
+}
+
+export type TerminalClientMessage =
+  | TerminalStartMessage
+  | TerminalInputMessage
+  | TerminalResizeMessage;
 
 // ── LLM Types ──────────────────────────────────────────────────
 

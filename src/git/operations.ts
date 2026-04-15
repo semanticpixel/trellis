@@ -138,6 +138,47 @@ export async function getStatus(repoPath: string): Promise<string> {
   return git(['status', '--porcelain'], repoPath);
 }
 
+// ── Branch operations ──────────────────────────────────────────
+
+export interface BranchInfo {
+  name: string;
+  isCurrent: boolean;
+  lastCommitDate: string; // ISO date string
+  lastCommitMessage: string;
+}
+
+export async function listBranches(repoPath: string): Promise<BranchInfo[]> {
+  // format: refname, HEAD indicator, committer date ISO, subject
+  const output = await git(
+    ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)\t%(HEAD)\t%(committerdate:iso-strict)\t%(subject)', 'refs/heads/'],
+    repoPath,
+  );
+
+  const branches: BranchInfo[] = [];
+  for (const line of output.trim().split('\n')) {
+    if (!line) continue;
+    const [name, head, date, ...msgParts] = line.split('\t');
+    if (!name) continue;
+    branches.push({
+      name,
+      isCurrent: head === '*',
+      lastCommitDate: date ?? '',
+      lastCommitMessage: msgParts.join('\t'),
+    });
+  }
+  return branches;
+}
+
+export async function checkoutBranch(repoPath: string, branchName: string): Promise<void> {
+  await git(['checkout', branchName], repoPath);
+}
+
+export async function createBranch(repoPath: string, branchName: string, startPoint?: string): Promise<void> {
+  const args = ['checkout', '-b', branchName];
+  if (startPoint) args.push(startPoint);
+  await git(args, repoPath);
+}
+
 export async function readPlanFile(repoPath: string): Promise<string | null> {
   const { readFile } = await import('fs/promises');
   const { join } = await import('path');

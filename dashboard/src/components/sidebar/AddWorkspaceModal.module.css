@@ -100,6 +100,10 @@
   background: var(--bg-active);
 }
 
+.hiddenInput {
+  display: none;
+}
+
 .error {
   color: var(--error);
   font-size: 12px;

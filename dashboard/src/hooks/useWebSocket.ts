@@ -65,6 +65,19 @@ function subscribe(listener: Listener): () => void {
 }
 
 /**
+ * Send a message through the shared WebSocket connection.
+ * Ensures the connection is open before sending.
+ */
+export function sendWs(message: Record<string, unknown>): void {
+  if (!socket || socket.readyState === WebSocket.CLOSED) {
+    connect();
+  }
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+  }
+}
+
+/**
  * Subscribe to all WebSocket events. The hook handles connect/reconnect
  * with exponential backoff. All subscribers share a single connection.
  */

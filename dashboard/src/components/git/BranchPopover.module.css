@@ -1,0 +1,154 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.popover {
+  position: absolute;
+  z-index: 101;
+  width: 260px;
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.searchWrapper {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.searchInput {
+  width: 100%;
+  padding: 6px var(--space-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--accent);
+}
+
+.branchList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xs) 0;
+}
+
+.branchItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 6px var(--space-md);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  text-align: left;
+}
+
+.branchItem:hover {
+  background: var(--bg-hover);
+}
+
+.branchItemCurrent {
+  composes: branchItem;
+  font-weight: 600;
+}
+
+.checkIcon {
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--success);
+}
+
+.checkPlaceholder {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.branchName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branchDate {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: var(--space-md);
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.footer {
+  padding: var(--space-sm);
+  border-top: 1px solid var(--border-primary);
+}
+
+.createRow {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.createInput {
+  flex: 1;
+  padding: 4px var(--space-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+
+.createInput:focus {
+  border-color: var(--accent);
+}
+
+.createBtn {
+  padding: 4px var(--space-sm);
+  background: var(--accent);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.createBtn:hover {
+  background: var(--accent-hover);
+}
+
+.createBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 11px;
+  color: var(--error);
+}

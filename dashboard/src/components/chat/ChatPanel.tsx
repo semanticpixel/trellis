@@ -4,6 +4,7 @@ import { useChatStream } from '../../hooks/useChatStream';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatComposer } from './ChatComposer';
 import { ModelSelector } from './ModelSelector';
+import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal';
 import styles from './ChatPanel.module.css';
 
 interface ChatPanelProps {
@@ -11,9 +12,23 @@ interface ChatPanelProps {
   workspaceColor: string;
   onToggleReview: () => void;
   reviewOpen: boolean;
+  terminalOpen: boolean;
+  onToggleTerminal: () => void;
+  onCloseTerminal: () => void;
+  workspaceId: string | null;
+  terminalCwd: string;
 }
 
-export function ChatPanel({ thread, workspaceColor, onToggleReview, reviewOpen }: ChatPanelProps) {
+export function ChatPanel({
+  thread,
+  workspaceColor,
+  onToggleReview,
+  reviewOpen,
+  terminalOpen,
+  onCloseTerminal,
+  workspaceId,
+  terminalCwd,
+}: ChatPanelProps) {
   const threadId = thread?.id ?? null;
   const { data: messages } = useMessages(threadId);
   const { streamingText, isStreaming, error } = useChatStream(threadId);
@@ -71,6 +86,14 @@ export function ChatPanel({ thread, workspaceColor, onToggleReview, reviewOpen }
         onSend={handleSend}
         disabled={isStreaming || sendMessage.isPending}
       />
+
+      {terminalOpen && workspaceId && terminalCwd && (
+        <EmbeddedTerminal
+          workspaceId={workspaceId}
+          cwd={terminalCwd}
+          onClose={onCloseTerminal}
+        />
+      )}
     </main>
   );
 }

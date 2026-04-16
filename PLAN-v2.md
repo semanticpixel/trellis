@@ -47,11 +47,9 @@ Added a `Resizer` component at the sidebar/chat and chat/review boundaries. Widt
 
 `runner.ts` now includes the tool input on `thread_tool_end` broadcasts. When the active thread's `write_file`/`edit_file` tool call succeeds, `App.tsx` opens the review panel, passes `{ path, token }` down through `ReviewPanel` → `DiffTab` to auto-select the file, and invalidates the `diff` / `file-diff` React Query caches so the new contents show immediately.
 
-## 8. User message alignment
+## ~~8. User message alignment~~ DONE
 
-User messages are currently right-aligned with max-width: 75%. This may read better left-aligned instead, keeping the max-width cap for visual distinction.
-
-Fix: remove `margin-left: auto` from `.user` in ChatMessage.module.css. Keep `max-width: 75%` so user messages are still visually narrower than assistant responses.
+Removed `margin-left: auto` from `.user` in `ChatMessage.module.css`. User messages now sit flush-left like assistant replies, still capped at `max-width: 75%` for visual distinction.
 
 ## 9. Annotation/diff review workflow
 

@@ -10,9 +10,10 @@ interface WorkspaceBlockProps {
   workspace: Workspace;
   activeThreadId: string | null;
   onSelectThread: (threadId: string, workspaceId: string) => void;
+  notifiedThreadIds: Set<string>;
 }
 
-export function WorkspaceBlock({ workspace, activeThreadId, onSelectThread }: WorkspaceBlockProps) {
+export function WorkspaceBlock({ workspace, activeThreadId, onSelectThread, notifiedThreadIds }: WorkspaceBlockProps) {
   const { data: repos } = useRepos(workspace.id);
   const { data: threads } = useThreads(workspace.id);
   const createThread = useCreateThread();
@@ -81,6 +82,7 @@ export function WorkspaceBlock({ workspace, activeThreadId, onSelectThread }: Wo
               thread={t}
               isActive={t.id === activeThreadId}
               isWorkspaceLevel
+              hasNotification={notifiedThreadIds.has(t.id)}
               onSelect={() => onSelectThread(t.id, workspace.id)}
             />
           ))}
@@ -98,6 +100,7 @@ export function WorkspaceBlock({ workspace, activeThreadId, onSelectThread }: Wo
               activeThreadId={activeThreadId}
               onSelectThread={(threadId) => onSelectThread(threadId, workspace.id)}
               onNewThread={() => handleNewThread(repo.id)}
+              notifiedThreadIds={notifiedThreadIds}
             />
           ))}
         </div>

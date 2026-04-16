@@ -58,9 +58,15 @@ export function createRoutes(ctx: ServerContext): Router {
   });
 
   router.patch('/workspaces/:id', (req, res) => {
-    const { color } = req.body;
+    const { color, name, sort_order } = req.body;
     if (color) {
       store.updateWorkspaceColor(req.params.id, color);
+    }
+    if (name) {
+      store.updateWorkspaceName(req.params.id, name);
+    }
+    if (sort_order !== undefined) {
+      store.updateWorkspaceSortOrder(req.params.id, sort_order);
     }
     const workspace = store.getWorkspace(req.params.id);
     if (!workspace) {
@@ -102,6 +108,17 @@ export function createRoutes(ctx: ServerContext): Router {
   router.post('/threads', (req, res) => {
     const thread = store.createThread(req.body);
     res.status(201).json(thread);
+  });
+
+  // Thread search must come before /threads/:id to avoid "search" matching as :id
+  router.get('/threads/search', (req, res) => {
+    const q = req.query.q as string;
+    if (!q) {
+      res.json([]);
+      return;
+    }
+    const threads = store.searchThreads(q);
+    res.json(threads);
   });
 
   router.get('/threads/:id', (req, res) => {
@@ -432,6 +449,38 @@ export function createRoutes(ctx: ServerContext): Router {
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create branch' });
     }
+  });
+
+  // ── Providers ──────────────────────────────────────────────
+
+  router.get('/providers', (_req, res) => {
+    const providers = store.listProviders();
+    res.json(providers);
+  });
+
+  router.post('/providers', (req, res) => {
+    const { name, type, base_url, default_model } = req.body;
+    if (!name || !type) {
+      res.status(400).json({ error: 'name and type are required' });
+      return;
+    }
+    const provider = store.createProvider(name, type, base_url, default_model);
+    res.status(201).json(provider);
+  });
+
+  router.patch('/providers/:id', (req, res) => {
+    const { name, base_url, default_model } = req.body;
+    const provider = store.updateProvider(req.params.id, { name, base_url, default_model });
+    if (!provider) {
+      res.status(404).json({ error: 'Provider not found' });
+      return;
+    }
+    res.json(provider);
+  });
+
+  router.delete('/providers/:id', (req, res) => {
+    store.deleteProvider(req.params.id);
+    res.status(204).end();
   });
 
   // ── Settings ───────────────────────────────────────────────

@@ -64,6 +64,12 @@
   --status-approval: #16a34a;
   --status-done: #999999;
   --status-error: #dc2626;
+
+  /* Shadows */
+  --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
 }
 
 /* ── Dark Theme ─────────────────────────────────────────────── */
@@ -103,7 +109,99 @@
     --status-approval: #22c55e;
     --status-done: #666666;
     --status-error: #ef4444;
+
+    /* Shadows */
+    --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+    --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --bg-overlay: rgba(0, 0, 0, 0.6);
   }
+}
+
+/* ── Explicit Theme Override ────────────────────────────────── */
+/* data-theme="dark" forces dark regardless of OS preference   */
+
+:root[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-sidebar: #141414;
+  --bg-hover: #252525;
+  --bg-active: #303030;
+  --bg-input: #1e1e1e;
+  --bg-code: #1e1e1e;
+  --bg-message-user: #1a2332;
+  --bg-message-assistant: #1a1a1a;
+  --bg-tool: #1a2018;
+
+  --text-primary: #e5e5e5;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #666666;
+  --text-inverse: #1a1a1a;
+
+  --border-primary: #2e2e2e;
+  --border-secondary: #3e3e3e;
+
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-subtle: #1e293b;
+
+  --success: #22c55e;
+  --success-subtle: #14271a;
+  --error: #ef4444;
+  --error-subtle: #2d1414;
+  --warning: #eab308;
+  --warning-subtle: #2d2714;
+
+  --status-running: #3b82f6;
+  --status-approval: #22c55e;
+  --status-done: #666666;
+  --status-error: #ef4444;
+
+  --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+}
+
+/* data-theme="light" forces light regardless of OS preference */
+:root[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-sidebar: #f8f8f8;
+  --bg-hover: #f0f0f0;
+  --bg-active: #e8e8e8;
+  --bg-input: #ffffff;
+  --bg-code: #f5f5f5;
+  --bg-message-user: #f0f4ff;
+  --bg-message-assistant: #ffffff;
+  --bg-tool: #f8faf8;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --text-inverse: #ffffff;
+
+  --border-primary: #e5e5e5;
+  --border-secondary: #d0d0d0;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-subtle: #eff6ff;
+
+  --success: #16a34a;
+  --success-subtle: #f0fdf4;
+  --error: #dc2626;
+  --error-subtle: #fef2f2;
+  --warning: #ca8a04;
+  --warning-subtle: #fefce8;
+
+  --status-running: #2563eb;
+  --status-approval: #16a34a;
+  --status-done: #999999;
+  --status-error: #dc2626;
+
+  --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
 }
 
 /* ── Global Reset ───────────────────────────────────────────── */

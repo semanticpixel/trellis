@@ -315,4 +315,38 @@ export class Store {
     ).run(id, name, type, baseUrl ?? null, defaultModel ?? null);
     return this.getProvider(id)!;
   }
+
+  updateProvider(id: string, updates: { name?: string; base_url?: string; default_model?: string }): Provider | undefined {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    if (updates.name !== undefined) { sets.push('name = ?'); values.push(updates.name); }
+    if (updates.base_url !== undefined) { sets.push('base_url = ?'); values.push(updates.base_url); }
+    if (updates.default_model !== undefined) { sets.push('default_model = ?'); values.push(updates.default_model); }
+    if (sets.length === 0) return this.getProvider(id);
+    values.push(id);
+    this.db.prepare(`UPDATE providers SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+    return this.getProvider(id);
+  }
+
+  deleteProvider(id: string): void {
+    this.db.prepare('DELETE FROM providers WHERE id = ?').run(id);
+  }
+
+  // ── Workspace Ordering ────────────────────────────────────────
+
+  updateWorkspaceSortOrder(id: string, sortOrder: number): void {
+    this.db.prepare('UPDATE workspaces SET sort_order = ? WHERE id = ?').run(sortOrder, id);
+  }
+
+  updateWorkspaceName(id: string, name: string): void {
+    this.db.prepare('UPDATE workspaces SET name = ? WHERE id = ?').run(name, id);
+  }
+
+  // ── Thread Search ─────────────────────────────────────────────
+
+  searchThreads(query: string): Thread[] {
+    return this.db.prepare(
+      'SELECT * FROM threads WHERE title LIKE ? ORDER BY updated_at DESC'
+    ).all(`%${query}%`) as Thread[];
+  }
 }

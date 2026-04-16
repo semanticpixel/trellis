@@ -92,3 +92,11 @@
   flex-shrink: 0;
   font-weight: 500;
 }
+
+.notifyDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}

@@ -2,7 +2,7 @@
 
 ## Current Status (last updated: 2026-04-15)
 
-### What's done (Phase 1 + Phase 2 + Phase 3 complete)
+### What's done (Phase 1 + Phase 2 + Phase 3 + Phase 4 complete)
 
 **Phase 1 — Foundation + Chat + Sidebar:**
 - **Project scaffolding**: package.json, tsconfig, Electron config, Vite config, .gitignore, .nvmrc
@@ -62,11 +62,29 @@
 - Creating a workspace auto-discovers git repos (tested with w0 — found 12 repos)
 - pnpm install + native module builds work (better-sqlite3, node-pty, electron)
 
-### What's next (Phase 4)
-Phase 3 is complete. Next up is Phase 4: Polish + Extended LLM Support.
+**Phase 4 — Polish + Extended LLM Support:**
+- **Ollama adapter**: `src/llm/ollama.ts` — hits `http://localhost:11434/api/chat` with streaming, newline-delimited JSON parsing, tool call support, normalize to StreamEvent
+- **Custom adapter**: `src/llm/custom.ts` — OpenAI-compatible adapter with configurable `baseURL` + provider identity, full streaming with tool calls
+- **Provider API routes**: `GET/POST/PATCH/DELETE /api/providers` — full CRUD for provider configuration
+- **Store additions**: `updateProvider()`, `deleteProvider()`, `updateWorkspaceSortOrder()`, `updateWorkspaceName()`, `searchThreads()` methods
+- **Context window management**: `src/session/history.ts` — `estimateTokens()`, `estimateConversationTokens()`, `getContextLimit()`, `compactMessages()` — per-provider context limits, oldest-first truncation preserving first message + recent messages + tool pairs, integrated into session runner
+- **Settings overlay**: `SettingsOverlay.tsx` — modal with 3 tabs (Providers, Workspaces, Appearance), provider CRUD, API key management via safeStorage IPC, workspace color editing, theme toggle (light/dark/system)
+- **Theme system**: `data-theme` attribute overrides on `:root` for explicit light/dark mode, persisted via settings table
+- **Flat sidebar mode**: `FlatView.tsx` — Codex-style flat workspace list with threads directly under workspace headers, toggle between tree/flat via icon buttons in sidebar header
+- **Thread search**: Search input at top of sidebar, filters threads across all workspaces by title, search results display with workspace color dots, backend route `GET /threads/search?q=`
+- **Keyboard shortcuts**: `Cmd+N` new thread, `Cmd+1-4` switch workspace, `Cmd+Shift+D` toggle review, `Cmd+`` toggle terminal — all registered in App.tsx
+- **Notification dots**: Thread status change tracking via WebSocket `thread_status` events, blue dot indicator on unfocused threads when their status changes, cleared on thread selection — propagated through TreeView/FlatView/WorkspaceBlock/RepoRow/ThreadRow
+- **CSS shadow tokens**: `--shadow-overlay`, `--shadow-popover`, `--shadow-modal`, `--bg-overlay` tokens in tokens.css (light + dark), replaced hardcoded rgba() in AddWorkspaceModal.module.css and BranchPopover.module.css
+- **Provider/settings hooks**: `useProviders()`, `useCreateProvider()`, `useUpdateProvider()`, `useDeleteProvider()`, `useUpdateWorkspace()`, `useSetting()`, `useSetSetting()`, `useThreadSearch()` React Query hooks
+- **Dynamic adapter registration**: `src/index.ts` registers Ollama adapters from DB on startup, exports adapter classes for Electron main process runtime registration
 
-### After Phase 3: future phases
-- **Phase 4**: Polish (Ollama/custom adapters, settings UI, flat sidebar mode, keyboard shortcuts)
+### What's verified
+- Backend compiles (`tsc --noEmit` passes)
+- Dashboard compiles (`tsc --noEmit` passes)
+- Full `pnpm typecheck` passes (both backend + dashboard)
+
+### All phases complete
+No further phases planned. Project is feature-complete.
 
 ---
 

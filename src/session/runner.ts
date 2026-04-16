@@ -3,6 +3,7 @@ import type { LLMAdapter } from '../llm/types.js';
 import type { LLMMessage, StreamEvent, WSEventType } from '../shared/types.js';
 import { getTool, getToolDefinitions } from '../tools/registry.js';
 import { MAX_TOOL_LOOPS } from '../shared/constants.js';
+import { compactMessages, estimateTokens } from './history.js';
 
 export interface RunnerContext {
   store: Store;
@@ -50,12 +51,16 @@ export async function runThread(
 
       // Load messages from DB
       const dbMessages = store.listMessages(threadId);
-      const messages: LLMMessage[] = dbMessages.map((m) => ({
+      const allMessages: LLMMessage[] = dbMessages.map((m) => ({
         role: m.role as LLMMessage['role'],
         content: m.content,
         toolName: m.tool_name ?? undefined,
         toolUseId: m.tool_use_id ?? undefined,
       }));
+
+      // Compact messages if approaching context limit
+      const systemPromptTokens = estimateTokens(systemPrompt) + 2000; // ~2k for tool defs
+      const messages = compactMessages(allMessages, thread.provider, systemPromptTokens);
 
       // Stream from LLM
       let assistantText = '';

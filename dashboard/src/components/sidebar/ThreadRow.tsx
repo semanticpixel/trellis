@@ -5,10 +5,11 @@ interface ThreadRowProps {
   thread: Thread;
   isActive: boolean;
   isWorkspaceLevel?: boolean;
+  hasNotification?: boolean;
   onSelect: () => void;
 }
 
-export function ThreadRow({ thread, isActive, isWorkspaceLevel, onSelect }: ThreadRowProps) {
+export function ThreadRow({ thread, isActive, isWorkspaceLevel, hasNotification, onSelect }: ThreadRowProps) {
   const statusClass = styles[`status_${thread.status.replace('-', '_')}`] ?? '';
 
   return (
@@ -18,6 +19,7 @@ export function ThreadRow({ thread, isActive, isWorkspaceLevel, onSelect }: Thre
     >
       <span className={`${styles.dot} ${isWorkspaceLevel ? styles.hollow : ''} ${statusClass}`} />
       <span className={styles.title}>{thread.title}</span>
+      {hasNotification && !isActive && <span className={styles.notifyDot} />}
       {thread.status === 'running' && <span className={styles.spinner} />}
       {thread.status === 'awaiting-approval' && <span className={styles.approvalBadge}>review</span>}
     </button>

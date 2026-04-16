@@ -7,7 +7,7 @@ import { Resizer } from './components/layout/Resizer';
 import { useWorkspaces, useRepos, useCreateThread, useSendMessage } from './hooks/useWorkspaces';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelWidths } from './hooks/usePanelWidths';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Thread, WSMessage } from '@shared/types';
 import styles from './App.module.css';
 
@@ -18,6 +18,7 @@ export function App() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifiedThreadIds, setNotifiedThreadIds] = useState<Set<string>>(new Set());
+  const [autoFocusFile, setAutoFocusFile] = useState<{ path: string; token: number } | null>(null);
   const { data: workspaces } = useWorkspaces();
   const createThread = useCreateThread();
   const sendMessage = useSendMessage();
@@ -31,6 +32,7 @@ export function App() {
     persistSidebar,
     persistReview,
   } = usePanelWidths();
+  const qc = useQueryClient();
 
   const { data: activeThread } = useQuery<Thread>({
     queryKey: ['thread', activeThreadId],
@@ -73,7 +75,7 @@ export function App() {
     );
   }, [createThread, sendMessage]);
 
-  // Listen for thread_status events to trigger notification dots
+  // Listen for thread events
   useWebSocket(useCallback((msg: WSMessage) => {
     if (msg.type === 'thread_status') {
       const threadId = msg.threadId;
@@ -87,7 +89,22 @@ export function App() {
         });
       }
     }
-  }, []));
+
+    // Auto-open the review panel and focus on the changed file when the
+    // LLM writes or edits a file in the active thread.
+    if (msg.type === 'thread_tool_end' && msg.threadId === activeThreadIdRef.current) {
+      const data = msg.data as { name?: string; input?: { path?: string }; result?: { isError?: boolean } };
+      if ((data.name === 'write_file' || data.name === 'edit_file') && !data.result?.isError) {
+        const path = data.input?.path;
+        if (path) {
+          setReviewPanelOpen(true);
+          setAutoFocusFile({ path, token: Date.now() });
+          qc.invalidateQueries({ queryKey: ['diff'] });
+          qc.invalidateQueries({ queryKey: ['file-diff'] });
+        }
+      }
+    }
+  }, [qc]));
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -183,6 +200,7 @@ export function App() {
           <ReviewPanel
             thread={activeThread ?? null}
             repoId={activeThread?.repo_id ?? null}
+            autoFocusFile={autoFocusFile}
           />
         </>
       )}

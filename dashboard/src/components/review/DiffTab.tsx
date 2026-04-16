@@ -21,13 +21,21 @@ interface DiffTabProps {
   annotations: Annotation[];
   selectedAnnotationIds: Set<string>;
   onToggleAnnotation: (id: string) => void;
+  autoFocusFile?: { path: string; token: number } | null;
 }
 
-export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, onToggleAnnotation }: DiffTabProps) {
+export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, onToggleAnnotation, autoFocusFile }: DiffTabProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [commentLineNumber, setCommentLineNumber] = useState<number | null>(null);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const viewZoneIdsRef = useRef<string[]>([]);
+
+  // When App signals a tool wrote/edited a file, focus that file's diff.
+  useEffect(() => {
+    if (autoFocusFile?.path) {
+      setSelectedFile(autoFocusFile.path);
+    }
+  }, [autoFocusFile?.token, autoFocusFile?.path]);
 
   const baseRef = thread.base_commit ?? undefined;
   const { data: diffSummary } = useDiffSummary(repoId, baseRef);

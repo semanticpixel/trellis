@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAnnotations, useSendFeedback } from '../../hooks/useReview';
 import type { Thread } from '@shared/types';
 import styles from './ReviewPanel.module.css';
@@ -13,11 +13,18 @@ type TabId = 'diff' | 'plan';
 interface ReviewPanelProps {
   thread: Thread | null;
   repoId: string | null;
+  autoFocusFile?: { path: string; token: number } | null;
 }
 
-export function ReviewPanel({ thread, repoId }: ReviewPanelProps) {
+export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('diff');
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (autoFocusFile) {
+      setActiveTab('diff');
+    }
+  }, [autoFocusFile]);
 
   const threadId = thread?.id ?? null;
   const { data: annotations } = useAnnotations(threadId);
@@ -118,6 +125,7 @@ export function ReviewPanel({ thread, repoId }: ReviewPanelProps) {
               annotations={annotations ?? []}
               selectedAnnotationIds={selectedAnnotationIds}
               onToggleAnnotation={toggleAnnotationSelection}
+              autoFocusFile={autoFocusFile ?? null}
             />
           ) : (
             <PlanTab

@@ -253,13 +253,25 @@ function ApiKeyManager({ providerType, label }: { providerType: string; label: s
   }, [providerType]);
 
   const handleSave = async () => {
+    const key = keyValue.trim();
+    if (!key) return;
+
+    // Store in OS keychain via safeStorage (if in Electron)
     const api = (window as unknown as { api?: { keys?: { store: (name: string, value: string) => Promise<void> } } }).api;
-    if (api?.keys?.store && keyValue.trim()) {
-      await api.keys.store(providerType, keyValue.trim());
-      setHasKey(true);
-      setEditing(false);
-      setKeyValue('');
+    if (api?.keys?.store) {
+      await api.keys.store(providerType, key);
     }
+
+    // Register the adapter on the backend so it's usable immediately
+    await fetch('/api/adapters/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: providerType, apiKey: key }),
+    });
+
+    setHasKey(true);
+    setEditing(false);
+    setKeyValue('');
   };
 
   const handleDelete = async () => {

@@ -270,6 +270,38 @@ export function useSetSetting() {
   });
 }
 
+// ── Thread Model ────────────────────────────────────────────
+
+export function useUpdateThreadModel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ threadId, provider, model }: { threadId: string; provider: string; model: string }) =>
+      fetchJson<Thread>(`${API}/threads/${threadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, model }),
+      }),
+    onSuccess: (thread) => {
+      qc.invalidateQueries({ queryKey: ['thread', thread.id] });
+      qc.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+}
+
+// ── Adapters ────────────────────────────────────────────────
+
+export interface AdapterInfo {
+  providerId: string;
+  displayName: string;
+}
+
+export function useAdapters() {
+  return useQuery<AdapterInfo[]>({
+    queryKey: ['adapters'],
+    queryFn: () => fetchJson(`${API}/adapters`),
+  });
+}
+
 // ── Thread Search ───────────────────────────────────────────
 
 export function useThreadSearch(query: string) {

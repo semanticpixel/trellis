@@ -211,6 +211,12 @@ export class Store {
     ).run(title, id);
   }
 
+  updateThreadModel(id: string, provider: string, model: string): void {
+    this.db.prepare(
+      'UPDATE threads SET provider = ?, model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(provider, model, id);
+  }
+
   deleteThread(id: string): void {
     this.db.prepare('DELETE FROM threads WHERE id = ?').run(id);
   }

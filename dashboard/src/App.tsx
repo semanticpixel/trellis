@@ -133,6 +133,7 @@ export function App() {
         onCloseTerminal={() => setTerminalOpen(false)}
         workspaceId={activeWorkspaceId}
         terminalCwd={terminalCwd}
+        hasWorkspaces={!!workspaces && workspaces.length > 0}
       />
 
       {reviewPanelOpen && (

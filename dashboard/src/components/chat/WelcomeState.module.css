@@ -40,6 +40,8 @@
   background: var(--accent-hover);
 }
 
+/* ── Suggestion Cards ──────────────────────────────────────── */
+
 .suggestions {
   display: flex;
   flex-direction: column;
@@ -53,11 +55,17 @@
   align-items: flex-start;
   gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
-  background: var(--bg-hover);
+  background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   text-align: left;
-  cursor: default;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.card:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
 }
 
 .cardIcon {
@@ -66,16 +74,79 @@
   margin-top: 2px;
 }
 
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .cardLabel {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .cardPrompt {
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.4;
+}
+
+/* ── Workspace Picker ──────────────────────────────────────── */
+
+.pickerBackdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay);
+  z-index: 100;
+}
+
+.picker {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-md);
+  min-width: 220px;
+  box-shadow: var(--shadow-modal);
+}
+
+.pickerTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.pickerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-sm) var(--space-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.pickerItem:hover {
+  background: var(--bg-hover);
+}
+
+.pickerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pickerName {
+  font-size: 13px;
+  color: var(--text-primary);
 }

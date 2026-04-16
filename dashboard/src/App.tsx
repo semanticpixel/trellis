@@ -3,7 +3,7 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { ReviewPanel } from './components/review/ReviewPanel';
 import { SettingsOverlay } from './components/settings/SettingsOverlay';
-import { useWorkspaces, useRepos, useCreateThread } from './hooks/useWorkspaces';
+import { useWorkspaces, useRepos, useCreateThread, useSendMessage } from './hooks/useWorkspaces';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useQuery } from '@tanstack/react-query';
 import type { Thread, WSMessage } from '@shared/types';
@@ -18,6 +18,7 @@ export function App() {
   const [notifiedThreadIds, setNotifiedThreadIds] = useState<Set<string>>(new Set());
   const { data: workspaces } = useWorkspaces();
   const createThread = useCreateThread();
+  const sendMessage = useSendMessage();
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
 
@@ -48,6 +49,19 @@ export function App() {
       return next;
     });
   }, []);
+
+  const handleStartWithPrompt = useCallback((workspaceId: string, prompt: string) => {
+    createThread.mutate(
+      { workspace_id: workspaceId },
+      {
+        onSuccess: (thread) => {
+          setActiveThreadId(thread.id);
+          setActiveWorkspaceId(workspaceId);
+          sendMessage.mutate({ threadId: thread.id, content: prompt });
+        },
+      },
+    );
+  }, [createThread, sendMessage]);
 
   // Listen for thread_status events to trigger notification dots
   useWebSocket(useCallback((msg: WSMessage) => {
@@ -134,6 +148,8 @@ export function App() {
         workspaceId={activeWorkspaceId}
         terminalCwd={terminalCwd}
         hasWorkspaces={!!workspaces && workspaces.length > 0}
+        workspaces={workspaces ?? []}
+        onStartWithPrompt={handleStartWithPrompt}
       />
 
       {reviewPanelOpen && (

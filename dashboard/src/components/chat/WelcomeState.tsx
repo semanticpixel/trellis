@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import type { Workspace } from '@shared/types';
 import { AddWorkspaceModal } from '../sidebar/AddWorkspaceModal';
 import { FolderPlus, Search, Bug, TestTube } from 'lucide-react';
 import styles from './WelcomeState.module.css';
 
 interface WelcomeStateProps {
   hasWorkspaces: boolean;
+  workspaces: Workspace[];
+  onStartWithPrompt: (workspaceId: string, prompt: string) => void;
 }
 
 const SUGGESTIONS = [
@@ -13,8 +16,52 @@ const SUGGESTIONS = [
   { icon: TestTube, label: 'Write tests', prompt: 'Identify untested code paths and help me write comprehensive tests for them.' },
 ];
 
-export function WelcomeState({ hasWorkspaces }: WelcomeStateProps) {
+export function WelcomeState({ hasWorkspaces, workspaces, onStartWithPrompt }: WelcomeStateProps) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [pickerPrompt, setPickerPrompt] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!pickerPrompt) return;
+    const handle = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerPrompt(null);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [pickerPrompt]);
+
+  // Close picker on Escape
+  useEffect(() => {
+    if (!pickerPrompt) return;
+    const handle = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPickerPrompt(null);
+    };
+    document.addEventListener('keydown', handle);
+    return () => document.removeEventListener('keydown', handle);
+  }, [pickerPrompt]);
+
+  const handleCardClick = (prompt: string) => {
+    if (!hasWorkspaces) {
+      setShowAddModal(true);
+      return;
+    }
+    if (workspaces.length === 1) {
+      onStartWithPrompt(workspaces[0].id, prompt);
+      return;
+    }
+    // Multiple workspaces — show picker
+    setPickerPrompt(prompt);
+  };
+
+  const handlePickWorkspace = (workspaceId: string) => {
+    if (pickerPrompt) {
+      onStartWithPrompt(workspaceId, pickerPrompt);
+      setPickerPrompt(null);
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -22,7 +69,7 @@ export function WelcomeState({ hasWorkspaces }: WelcomeStateProps) {
 
       {hasWorkspaces ? (
         <p className={styles.subtitle}>
-          Select a thread from the sidebar, or start a new one to begin coding.
+          Select a thread from the sidebar, or pick a prompt below to get started.
         </p>
       ) : (
         <>
@@ -38,13 +85,37 @@ export function WelcomeState({ hasWorkspaces }: WelcomeStateProps) {
 
       <div className={styles.suggestions}>
         {SUGGESTIONS.map((s) => (
-          <div key={s.label} className={styles.card}>
+          <button
+            key={s.label}
+            className={styles.card}
+            onClick={() => handleCardClick(s.prompt)}
+          >
             <s.icon size={18} className={styles.cardIcon} />
-            <span className={styles.cardLabel}>{s.label}</span>
-            <span className={styles.cardPrompt}>{s.prompt}</span>
-          </div>
+            <div className={styles.cardText}>
+              <span className={styles.cardLabel}>{s.label}</span>
+              <span className={styles.cardPrompt}>{s.prompt}</span>
+            </div>
+          </button>
         ))}
       </div>
+
+      {pickerPrompt && (
+        <div className={styles.pickerBackdrop}>
+          <div className={styles.picker} ref={pickerRef}>
+            <div className={styles.pickerTitle}>Choose a workspace</div>
+            {workspaces.map((ws) => (
+              <button
+                key={ws.id}
+                className={styles.pickerItem}
+                onClick={() => handlePickWorkspace(ws.id)}
+              >
+                <span className={styles.pickerDot} style={{ backgroundColor: ws.color ?? '#6e7681' }} />
+                <span className={styles.pickerName}>{ws.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showAddModal && (
         <AddWorkspaceModal onClose={() => setShowAddModal(false)} />

@@ -12,6 +12,7 @@
   padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--border-primary);
   padding-top: 38px; /* macOS traffic lights */
+  -webkit-app-region: drag;
 }
 
 .headerLeft {
@@ -35,6 +36,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .actions {
@@ -42,6 +45,7 @@
   align-items: center;
   gap: var(--space-sm);
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .reviewToggle {

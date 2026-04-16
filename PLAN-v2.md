@@ -35,11 +35,9 @@ Implemented with two states:
 
 Scoped `hr { display: none }` inside `.content` in `ChatMessage.module.css`. The lines were `<hr>` elements produced by ReactMarkdown rendering `---` patterns in the streamed assistant content.
 
-## 5. App window not draggable
+## ~~5. App window not draggable~~ DONE
 
-The Electron window cannot be dragged by the title bar area. The custom header bar needs a CSS `-webkit-app-region: drag` zone, with interactive elements inside it marked as `-webkit-app-region: no-drag` so buttons/inputs remain clickable.
-
-Fix: add a drag region to the top of the app shell (e.g. a dedicated title bar div or the existing header area). Mark all buttons, inputs, and dropdowns inside it as `no-drag`.
+Added `-webkit-app-region: drag` to the sidebar, chat, and review panel header rows. Interactive containers inside (`.actions`, `.tabs`, `.feedbackActions`, sidebar `.viewToggle`) are marked `no-drag` so buttons remain clickable.
 
 ## 6. Resizable sidebar panels
 

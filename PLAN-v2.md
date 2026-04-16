@@ -1,12 +1,15 @@
 # Trellis — Plan v2 (UX Polish)
 
-> Items 3 (welcome state) is complete. Remaining items below.
+> Completed: item 3 (welcome state + clickable cards), streaming message fix, user message max-width.
+> Verified already landed: InlineComment shadow tokenized, listAnnotations uses `unresolvedOnly`, AddWorkspaceModal webkitdirectory fallback.
 
 ## 1. Workspace context menu (Codex-style)
 
 Add a `...` overflow menu on each WorkspaceBlock header row (appears on hover). Actions:
 
 - **Open in Finder** — opens workspace path in macOS Finder (`open <path>`)
+- **Open in Terminal** — spawns the embedded terminal at that workspace path (infrastructure already exists via `EmbeddedTerminal`)
+- **Open in VS Code** — runs `code <path>` (IPC pattern from Phase 2)
 - **Edit name** — inline rename the workspace
 - **Edit color** — opens the ColorPicker inline
 - **Archive threads** — marks all threads in the workspace as `done`
@@ -20,18 +23,13 @@ Reference: Codex shows a `...` button on workspace rows that opens a popover wit
 
 The sidebar header ("Trellis" + view toggle icons) and the chat panel header ("No thread selected" / thread title + model selector) are misaligned vertically. Both have `padding-top: 38px` for macOS traffic lights, but the sidebar header also has the search bar below it which pushes content down.
 
-Fix: ensure both headers use the same total height and vertical centering so the bottom border of the sidebar header aligns with the bottom border of the chat header. The search bar should not affect this alignment — it sits below the shared header line.
+Concrete fix: both the sidebar and chat headers should share a fixed header row height (e.g. 56px including the traffic light offset). The search bar in the sidebar sits *below* this shared header row as a separate element, not inside it. Both header bottom borders should align horizontally across the sidebar/chat boundary.
 
-## 3. Welcome empty state
+## ~~3. Welcome empty state~~ DONE
 
-When the app loads with no workspaces (or no thread selected), show an encouraging empty state in the main content area instead of just "No thread selected". Inspired by Codex's "Let's build" screen:
-
-- Large centered heading: "Let's build"
-- Subtitle encouraging the user to add a workspace
-- "Add workspace" CTA button that opens the AddWorkspaceModal
-- Optional: 2-3 suggestion cards with starter prompts (e.g. "Explore a codebase", "Fix a bug", "Write tests for a module") that create a thread with the prompt pre-filled once a workspace exists
-
-This makes the first-launch experience welcoming instead of blank.
+Implemented with two states:
+1. No workspaces → "Let's build" heading + Add Workspace CTA
+2. Workspaces exist, no thread selected → "Select a thread or pick a prompt" + clickable suggestion cards with workspace picker
 
 ## 4. Horizontal lines in streamed messages
 
@@ -78,3 +76,12 @@ Research:
 API keys entered in Settings are not persisted — users have to re-enter them every time the app launches. Keys are stored via `electron.safeStorage` IPC but the adapters are only registered in-memory during the current session.
 
 Fix: on app startup, the backend should read stored keys from safeStorage and auto-register the corresponding adapters. This likely requires an init routine in the Electron main process that calls the adapter registration endpoint after the Express server is ready.
+
+---
+
+## Known Debt (non-blocking)
+
+These are noted but low priority — not blocking any features.
+
+- **Terminal uses workspaceId as threadId in WS messages** — Works because terminal sessions are workspace-scoped, but bends the envelope spec. Functionally correct, semantically loose.
+- **Terminal sessions don't persist across close/reopen** — Reopening starts fresh. Expected for MVP.

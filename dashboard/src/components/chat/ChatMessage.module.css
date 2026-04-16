@@ -5,6 +5,8 @@
 
 .user {
   background: var(--bg-message-user);
+  max-width: 75%;
+  margin-left: auto;
 }
 
 .assistant {

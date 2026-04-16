@@ -26,10 +26,14 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
   const { data: searchResults } = useThreadSearch(searchQuery);
   const qc = useQueryClient();
 
-  // Listen for repo_update events to refresh branch pills
+  // Listen for repo_update and thread_status events to refresh sidebar
   useWebSocket(useCallback((msg: WSMessage) => {
     if (msg.type === 'repo_update') {
       qc.invalidateQueries({ queryKey: ['repos'] });
+    }
+    if (msg.type === 'thread_status' || msg.type === 'thread_error') {
+      qc.invalidateQueries({ queryKey: ['threads'] });
+      qc.invalidateQueries({ queryKey: ['thread', msg.threadId] });
     }
   }, [qc]));
 

@@ -148,6 +148,7 @@ export async function runThread(
         broadcast(threadId, 'thread_tool_end', {
           toolUseId: tc.id,
           name: tc.name,
+          input: tc.input,
           result,
         });
         broadcast(threadId, 'thread_message', toolResultMsg);

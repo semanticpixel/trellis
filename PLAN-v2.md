@@ -43,11 +43,9 @@ Added `-webkit-app-region: drag` to the sidebar, chat, and review panel header r
 
 Added a `Resizer` component at the sidebar/chat and chat/review boundaries. Widths are tracked via CSS custom properties (`--sidebar-width`, `--review-width`) set inline on the shell, clamped to sensible bounds (sidebar 200–480, review 320–720), and persisted to the backend settings API (`layout.sidebarWidth`, `layout.reviewWidth`) on drag end.
 
-## 7. Auto-show diff viewer on changes
+## ~~7. Auto-show diff viewer on changes~~ DONE
 
-The review/diff panel should automatically appear when the LLM makes file changes (write_file, edit_file tool calls), rather than requiring the user to manually toggle it.
-
-Fix: listen for `thread_tool_end` WS events with tool names `write_file` or `edit_file`. When detected, auto-open the review panel and navigate to the changed file's diff.
+`runner.ts` now includes the tool input on `thread_tool_end` broadcasts. When the active thread's `write_file`/`edit_file` tool call succeeds, `App.tsx` opens the review panel, passes `{ path, token }` down through `ReviewPanel` → `DiffTab` to auto-select the file, and invalidates the `diff` / `file-diff` React Query caches so the new contents show immediately.
 
 ## 8. User message alignment
 

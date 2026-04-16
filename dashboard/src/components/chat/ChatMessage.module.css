@@ -36,6 +36,10 @@
   margin-bottom: 0;
 }
 
+.content hr {
+  display: none;
+}
+
 .content ul,
 .content ol {
   margin: var(--space-sm) 0;

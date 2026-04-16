@@ -1,7 +1,7 @@
 .block {
   border-radius: var(--radius-md);
   border: 1px solid var(--border-primary);
-  overflow: hidden;
+  overflow: clip;
   margin: var(--space-xs) 0;
 }
 

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useThreadEvents } from './useWebSocket';
 import type { WSEventType, Message, ThreadStatus } from '@shared/types';
 
@@ -9,8 +10,6 @@ interface ChatStreamState {
   isStreaming: boolean;
   /** Thread status */
   status: ThreadStatus;
-  /** New messages received via WebSocket (append to query data) */
-  newMessages: Message[];
   /** Last error message */
   error: string | null;
 }
@@ -19,8 +18,8 @@ export function useChatStream(threadId: string | null): ChatStreamState {
   const [streamingText, setStreamingText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [status, setStatus] = useState<ThreadStatus>('idle');
-  const [newMessages, setNewMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
 
   const handleEvent = useCallback((type: WSEventType, data: unknown) => {
     const d = data as Record<string, unknown>;
@@ -43,13 +42,24 @@ export function useChatStream(threadId: string | null): ChatStreamState {
         setIsStreaming(false);
         break;
 
-      case 'thread_message':
-        setNewMessages((prev) => [...prev, d as unknown as Message]);
-        // When we get the assistant message, clear streaming text
-        if ((d as unknown as Message).role === 'assistant' && !(d as unknown as Message).tool_use_id) {
+      case 'thread_message': {
+        const msg = d as unknown as Message;
+        // Append the new message directly into the React Query cache
+        // so it's visible immediately without a refetch
+        if (threadId) {
+          qc.setQueryData<Message[]>(['messages', threadId], (prev) => {
+            if (!prev) return [msg];
+            // Avoid duplicates if the query refetched in the meantime
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        }
+        // Clear streaming text when we get the final assistant message
+        if (msg.role === 'assistant' && !msg.tool_use_id) {
           setStreamingText('');
         }
         break;
+      }
 
       case 'thread_status':
         setStatus(d.status as ThreadStatus);
@@ -60,16 +70,9 @@ export function useChatStream(threadId: string | null): ChatStreamState {
         setIsStreaming(false);
         break;
     }
-  }, []);
+  }, [threadId, qc]);
 
   useThreadEvents(threadId, handleEvent);
 
-  return { streamingText, isStreaming, status, newMessages, error };
-}
-
-/**
- * Clear accumulated newMessages (call after merging into query cache).
- */
-export function useClearNewMessages(): (setter: React.Dispatch<React.SetStateAction<Message[]>>) => void {
-  return useCallback((setter) => setter([]), []);
+  return { streamingText, isStreaming, status, error };
 }

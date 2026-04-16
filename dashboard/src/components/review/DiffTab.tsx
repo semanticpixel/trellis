@@ -29,6 +29,7 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
   const [commentLineNumber, setCommentLineNumber] = useState<number | null>(null);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const viewZoneIdsRef = useRef<string[]>([]);
+  const activeLineDecorationsRef = useRef<editor.IEditorDecorationsCollection | null>(null);
 
   // When App signals a tool wrote/edited a file, focus that file's diff.
   useEffect(() => {
@@ -36,6 +37,11 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
       setSelectedFile(autoFocusFile.path);
     }
   }, [autoFocusFile?.token, autoFocusFile?.path]);
+
+  // Clear the commented-line state when the user switches files.
+  useEffect(() => {
+    setCommentLineNumber(null);
+  }, [selectedFile]);
 
   const baseRef = thread.base_commit ?? undefined;
   const { data: diffSummary } = useDiffSummary(repoId, baseRef);
@@ -49,6 +55,15 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
   const fileAnnotations = annotations.filter(
     (a) => a.target_type === 'diff_line' && a.target_ref.startsWith(selectedFile + ':'),
   );
+
+  // Count unresolved annotations per file for the file-list badges.
+  const annotationCounts = annotations.reduce<Record<string, number>>((acc, a) => {
+    if (a.target_type !== 'diff_line' || a.resolved === 1) return acc;
+    const path = a.target_ref.slice(0, a.target_ref.lastIndexOf(':'));
+    if (!path) return acc;
+    acc[path] = (acc[path] ?? 0) + 1;
+    return acc;
+  }, {});
 
   const handleEditorMount = useCallback(
     (editor: editor.IStandaloneDiffEditor) => {
@@ -127,6 +142,37 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
     });
   }, [fileAnnotations, selectedFile]);
 
+  // Highlight the line that the comment form is attached to, and scroll it
+  // into view so the user always sees the code they're commenting on.
+  useEffect(() => {
+    const diffEditor = editorRef.current;
+    if (!diffEditor) return;
+    const modifiedEditor = diffEditor.getModifiedEditor();
+
+    if (activeLineDecorationsRef.current) {
+      activeLineDecorationsRef.current.clear();
+      activeLineDecorationsRef.current = null;
+    }
+    if (commentLineNumber === null) return;
+
+    activeLineDecorationsRef.current = modifiedEditor.createDecorationsCollection([
+      {
+        range: {
+          startLineNumber: commentLineNumber,
+          endLineNumber: commentLineNumber,
+          startColumn: 1,
+          endColumn: 1,
+        },
+        options: {
+          isWholeLine: true,
+          className: styles.activeCommentLine,
+          linesDecorationsClassName: styles.activeCommentGutter,
+        },
+      },
+    ]);
+    modifiedEditor.revealLineInCenterIfOutsideViewport(commentLineNumber);
+  }, [commentLineNumber]);
+
   const handleCommentSubmit = useCallback(
     (type: AnnotationType, text: string, replacement?: string) => {
       if (!selectedFile || commentLineNumber === null) return;
@@ -140,13 +186,16 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
           replacement,
         },
         {
-          onSuccess: () => {
+          onSuccess: (newAnnotation) => {
             setCommentLineNumber(null);
+            // Auto-select so the user can immediately hit "Send feedback"
+            // without hunting for checkboxes.
+            onToggleAnnotation(newAnnotation.id);
           },
         },
       );
     },
-    [selectedFile, commentLineNumber, thread.id, createAnnotation],
+    [selectedFile, commentLineNumber, thread.id, createAnnotation, onToggleAnnotation],
   );
 
   const handleDeleteAnnotation = useCallback(
@@ -184,13 +233,14 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
         onSelectFile={setSelectedFile}
         onStage={handleStage}
         onRevert={handleRevert}
+        annotationCounts={annotationCounts}
       />
 
       {selectedFile && fileDiff ? (
         <div className={styles.editorContainer}>
           <div className={styles.editorHeader}>
             <span className={styles.editorFileName}>{selectedFile}</span>
-            <span className={styles.editorHint}>Click gutter to add comment</span>
+            <span className={styles.editorHint}>Click a line number to leave a review comment</span>
           </div>
 
           <div className={styles.editor}>

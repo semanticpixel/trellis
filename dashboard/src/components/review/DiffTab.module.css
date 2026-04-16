@@ -82,6 +82,17 @@
   padding: var(--space-xl);
 }
 
+/* ── Monaco line decorations for active comment target ───────── */
+
+.activeCommentLine {
+  background: var(--accent-subtle) !important;
+}
+
+.activeCommentGutter {
+  background: var(--accent) !important;
+  width: 3px !important;
+}
+
 /* ── ViewZone styles (injected into Monaco) ─────────────────── */
 
 .viewZoneContainer {

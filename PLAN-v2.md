@@ -51,15 +51,15 @@ Added a `Resizer` component at the sidebar/chat and chat/review boundaries. Widt
 
 Removed `margin-left: auto` from `.user` in `ChatMessage.module.css`. User messages now sit flush-left like assistant replies, still capped at `max-width: 75%` for visual distinction.
 
-## 9. Annotation/diff review workflow
+## ~~9. Annotation/diff review workflow~~ DONE
 
-The inline annotation feature on diffs does not appear to work correctly. Need to research what Codex does for code review annotations and align the UX.
+UX overhaul, keeping the existing CRUD + `formatFeedback()` backend:
 
-Research:
-- How does Codex present diffs after tool edits?
-- Can users leave inline comments on specific lines?
-- Are annotations sent back to the LLM as feedback?
-- Current implementation: `src/review/` has annotation CRUD + `formatFeedback()` that injects annotations into the next user message. Likely a frontend wiring issue.
+- Clicking the gutter now highlights the targeted line with a Monaco line decoration and scrolls it into view, so the comment form below the editor always has visible context.
+- Newly created annotations are auto-selected for sending feedback — the user no longer has to hunt checkboxes before hitting the "Send feedback" button in the header.
+- `DiffFileList` shows an unresolved-comment count badge per file so reviewers can see where work remains across files.
+- Inline editor hint changed to "Click a line number to leave a review comment" for onboarding.
+- Switching files clears the stale comment form.
 
 ## 10. API key persistence across restarts
 

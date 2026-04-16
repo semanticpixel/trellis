@@ -31,11 +31,9 @@ Implemented with two states:
 1. No workspaces → "Let's build" heading + Add Workspace CTA
 2. Workspaces exist, no thread selected → "Select a thread or pick a prompt" + clickable suggestion cards with workspace picker
 
-## 4. Horizontal lines in streamed messages
+## ~~4. Horizontal lines in streamed messages~~ DONE
 
-During LLM streaming, random horizontal lines (`<hr>`) appear between assistant message blocks. Likely cause: tool call/result messages (read_file, list_files, bash) render as thin bordered blocks with no visible content, or the markdown renderer interprets separator-like patterns from the stream as `<hr>` elements.
-
-Fix: investigate whether these are empty ToolCallBlock renders or markdown `---` artifacts. Either collapse empty tool blocks or add CSS `hr { display: none }` scoping within the message content area.
+Scoped `hr { display: none }` inside `.content` in `ChatMessage.module.css`. The lines were `<hr>` elements produced by ReactMarkdown rendering `---` patterns in the streamed assistant content.
 
 ## 5. App window not draggable
 

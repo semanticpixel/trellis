@@ -3,8 +3,10 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { ReviewPanel } from './components/review/ReviewPanel';
 import { SettingsOverlay } from './components/settings/SettingsOverlay';
+import { Resizer } from './components/layout/Resizer';
 import { useWorkspaces, useRepos, useCreateThread, useSendMessage } from './hooks/useWorkspaces';
 import { useWebSocket } from './hooks/useWebSocket';
+import { usePanelWidths } from './hooks/usePanelWidths';
 import { useQuery } from '@tanstack/react-query';
 import type { Thread, WSMessage } from '@shared/types';
 import styles from './App.module.css';
@@ -21,6 +23,14 @@ export function App() {
   const sendMessage = useSendMessage();
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
+  const {
+    sidebarWidth,
+    reviewWidth,
+    resizeSidebar,
+    resizeReview,
+    persistSidebar,
+    persistReview,
+  } = usePanelWidths();
 
   const { data: activeThread } = useQuery<Thread>({
     queryKey: ['thread', activeThreadId],
@@ -128,13 +138,24 @@ export function App() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [activeWorkspaceId, workspaces, createThread]);
 
+  const shellStyle = {
+    '--sidebar-width': `${sidebarWidth}px`,
+    '--review-width': `${reviewWidth}px`,
+  } as React.CSSProperties;
+
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} style={shellStyle}>
       <Sidebar
         activeThreadId={activeThreadId}
         onSelectThread={handleSelectThread}
         onOpenSettings={() => setSettingsOpen(true)}
         notifiedThreadIds={notifiedThreadIds}
+      />
+
+      <Resizer
+        ariaLabel="Resize sidebar"
+        onResize={resizeSidebar}
+        onResizeEnd={persistSidebar}
       />
 
       <ChatPanel
@@ -153,10 +174,17 @@ export function App() {
       />
 
       {reviewPanelOpen && (
-        <ReviewPanel
-          thread={activeThread ?? null}
-          repoId={activeThread?.repo_id ?? null}
-        />
+        <>
+          <Resizer
+            ariaLabel="Resize review panel"
+            onResize={resizeReview}
+            onResizeEnd={persistReview}
+          />
+          <ReviewPanel
+            thread={activeThread ?? null}
+            repoId={activeThread?.repo_id ?? null}
+          />
+        </>
       )}
 
       {settingsOpen && (

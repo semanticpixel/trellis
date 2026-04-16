@@ -39,11 +39,9 @@ Scoped `hr { display: none }` inside `.content` in `ChatMessage.module.css`. The
 
 Added `-webkit-app-region: drag` to the sidebar, chat, and review panel header rows. Interactive containers inside (`.actions`, `.tabs`, `.feedbackActions`, sidebar `.viewToggle`) are marked `no-drag` so buttons remain clickable.
 
-## 6. Resizable sidebar panels
+## ~~6. Resizable sidebar panels~~ DONE
 
-The sidebar and review panel have fixed widths. Users should be able to drag the border between panels to resize them.
-
-Fix: add a drag handle (thin vertical strip) at the sidebar/chat boundary and the chat/review boundary. On mousedown, track horizontal movement and update the panel width via CSS variable or state. Persist the widths in settings so they survive restarts.
+Added a `Resizer` component at the sidebar/chat and chat/review boundaries. Widths are tracked via CSS custom properties (`--sidebar-width`, `--review-width`) set inline on the shell, clamped to sensible bounds (sidebar 200–480, review 320–720), and persisted to the backend settings API (`layout.sidebarWidth`, `layout.reviewWidth`) on drag end.
 
 ## 7. Auto-show diff viewer on changes
 

@@ -5,6 +5,11 @@ import { join, basename } from 'path';
 import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile, listBranches, checkoutBranch, createBranch, getCurrentBranch } from '../git/operations.js';
 import { formatFeedback } from '../review/feedback.js';
 import { parsePlan } from '../review/plan-parser.js';
+import { registerAdapter, hasAdapter, listAdapters } from '../llm/adapter.js';
+import { AnthropicAdapter } from '../llm/anthropic.js';
+import { OpenAIAdapter } from '../llm/openai.js';
+import { OllamaAdapter } from '../llm/ollama.js';
+import { CustomAdapter } from '../llm/custom.js';
 
 export function createRoutes(ctx: ServerContext): Router {
   const router = Router();
@@ -131,11 +136,14 @@ export function createRoutes(ctx: ServerContext): Router {
   });
 
   router.patch('/threads/:id', (req, res) => {
-    const { title, status } = req.body;
+    const { title, status, provider, model } = req.body;
     if (title) store.updateThreadTitle(req.params.id, title);
     if (status) {
       store.updateThreadStatus(req.params.id, status);
       broadcast(req.params.id, 'thread_status', { status });
+    }
+    if (provider && model) {
+      store.updateThreadModel(req.params.id, provider, model);
     }
     const thread = store.getThread(req.params.id);
     if (!thread) {
@@ -481,6 +489,52 @@ export function createRoutes(ctx: ServerContext): Router {
   router.delete('/providers/:id', (req, res) => {
     store.deleteProvider(req.params.id);
     res.status(204).end();
+  });
+
+  // ── Adapters (runtime LLM adapter registration) ───────────
+
+  router.get('/adapters', (_req, res) => {
+    const adapters = listAdapters().map((a) => ({
+      providerId: a.providerId,
+      displayName: a.displayName,
+    }));
+    res.json(adapters);
+  });
+
+  router.post('/adapters/register', (req, res) => {
+    const { type, apiKey, baseUrl } = req.body as { type: string; apiKey?: string; baseUrl?: string };
+    if (!type) {
+      res.status(400).json({ error: 'type is required' });
+      return;
+    }
+
+    try {
+      switch (type) {
+        case 'anthropic':
+          if (!apiKey) { res.status(400).json({ error: 'apiKey is required for anthropic' }); return; }
+          registerAdapter(new AnthropicAdapter(apiKey));
+          break;
+        case 'openai':
+          if (!apiKey) { res.status(400).json({ error: 'apiKey is required for openai' }); return; }
+          registerAdapter(new OpenAIAdapter(apiKey));
+          break;
+        case 'ollama':
+          registerAdapter(new OllamaAdapter(baseUrl ?? undefined));
+          break;
+        case 'custom':
+          if (!apiKey || !baseUrl) { res.status(400).json({ error: 'apiKey and baseUrl are required for custom' }); return; }
+          registerAdapter(new CustomAdapter(`custom_${Date.now()}`, 'Custom', baseUrl, apiKey));
+          break;
+        default:
+          res.status(400).json({ error: `Unknown provider type: ${type}` });
+          return;
+      }
+
+      console.log(`[trellis] ${type} adapter registered via API`);
+      res.json({ ok: true, type });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to register adapter' });
+    }
   });
 
   // ── Settings ───────────────────────────────────────────────

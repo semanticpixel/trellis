@@ -19,11 +19,13 @@
   padding-top: 38px; /* macOS traffic lights offset */
   gap: var(--space-sm);
   flex-wrap: wrap;
+  -webkit-app-region: drag;
 }
 
 .tabs {
   display: flex;
   gap: var(--space-xs);
+  -webkit-app-region: no-drag;
 }
 
 .tab {
@@ -51,6 +53,7 @@
   display: flex;
   gap: var(--space-xs);
   align-items: center;
+  -webkit-app-region: no-drag;
 }
 
 .selectAll {

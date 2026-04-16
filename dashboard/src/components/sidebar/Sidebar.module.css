@@ -14,12 +14,15 @@
   padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--border-primary);
   padding-top: 38px; /* macOS traffic lights */
+  -webkit-app-region: drag;
 }
 
 .logo {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .headerActions {
@@ -38,6 +41,7 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-tertiary);
+  -webkit-app-region: no-drag;
 }
 
 .viewToggle:hover {

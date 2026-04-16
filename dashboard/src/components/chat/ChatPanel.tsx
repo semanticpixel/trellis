@@ -5,6 +5,7 @@ import { ChatMessageList } from './ChatMessageList';
 import { ChatComposer } from './ChatComposer';
 import { ModelSelector } from './ModelSelector';
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal';
+import { WelcomeState } from './WelcomeState';
 import styles from './ChatPanel.module.css';
 
 interface ChatPanelProps {
@@ -17,6 +18,7 @@ interface ChatPanelProps {
   onCloseTerminal: () => void;
   workspaceId: string | null;
   terminalCwd: string;
+  hasWorkspaces: boolean;
 }
 
 export function ChatPanel({
@@ -28,6 +30,7 @@ export function ChatPanel({
   onCloseTerminal,
   workspaceId,
   terminalCwd,
+  hasWorkspaces,
 }: ChatPanelProps) {
   const threadId = thread?.id ?? null;
   const { data: messages } = useMessages(threadId);
@@ -51,7 +54,7 @@ export function ChatPanel({
           </div>
         </div>
         <div className={styles.empty}>
-          <p className={styles.placeholder}>Select or create a thread to start chatting</p>
+          <WelcomeState hasWorkspaces={hasWorkspaces} />
         </div>
       </main>
     );

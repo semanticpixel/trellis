@@ -1,4 +1,4 @@
-import type { Thread } from '@shared/types';
+import type { Thread, Workspace } from '@shared/types';
 import { useMessages, useSendMessage } from '../../hooks/useWorkspaces';
 import { useChatStream } from '../../hooks/useChatStream';
 import { ChatMessageList } from './ChatMessageList';
@@ -19,6 +19,8 @@ interface ChatPanelProps {
   workspaceId: string | null;
   terminalCwd: string;
   hasWorkspaces: boolean;
+  workspaces: Workspace[];
+  onStartWithPrompt: (workspaceId: string, prompt: string) => void;
 }
 
 export function ChatPanel({
@@ -31,6 +33,8 @@ export function ChatPanel({
   workspaceId,
   terminalCwd,
   hasWorkspaces,
+  workspaces,
+  onStartWithPrompt,
 }: ChatPanelProps) {
   const threadId = thread?.id ?? null;
   const { data: messages } = useMessages(threadId);
@@ -54,7 +58,11 @@ export function ChatPanel({
           </div>
         </div>
         <div className={styles.empty}>
-          <WelcomeState hasWorkspaces={hasWorkspaces} />
+          <WelcomeState
+            hasWorkspaces={hasWorkspaces}
+            workspaces={workspaces}
+            onStartWithPrompt={onStartWithPrompt}
+          />
         </div>
       </main>
     );

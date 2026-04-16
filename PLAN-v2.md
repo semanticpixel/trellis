@@ -61,11 +61,18 @@ UX overhaul, keeping the existing CRUD + `formatFeedback()` backend:
 - Inline editor hint changed to "Click a line number to leave a review comment" for onboarding.
 - Switching files clears the stale comment form.
 
-## 10. API key persistence across restarts
+## ~~10. API key persistence across restarts~~ DONE
 
-API keys entered in Settings are not persisted — users have to re-enter them every time the app launches. Keys are stored via `electron.safeStorage` IPC but the adapters are only registered in-memory during the current session.
+Two bugs were blocking this:
 
-Fix: on app startup, the backend should read stored keys from safeStorage and auto-register the corresponding adapters. This likely requires an init routine in the Electron main process that calls the adapter registration endpoint after the Express server is ready.
+1. The `keyStore` Map in `electron/main.mjs` was in-memory only — `safeStorage.encryptString()` produced secure buffers but they died with the process.
+2. Nothing re-registered adapters on the backend after a restart.
+
+Fixes:
+
+- Persist encrypted buffers (base64-encoded) to `~/.trellis/keys.json` with `mode: 0o600`. The OS-bound encryption makes the file unreadable without the current user's keychain/DPAPI.
+- Load the file on `main.mjs` startup and hydrate the in-memory map.
+- After `app.whenReady()`, poll `/api/adapters` until the backend is up, then POST decrypted keys to `/api/adapters/register` for each known provider type.
 
 ---
 

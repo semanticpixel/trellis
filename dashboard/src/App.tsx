@@ -104,6 +104,31 @@ export function App() {
     );
   }, [createThread, sendMessage]);
 
+  // Expire composer drafts older than 7 days on startup.
+  useEffect(() => {
+    const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const toDelete: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('trellis:draft:')) continue;
+      let stale = true;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { updatedAt?: unknown };
+          if (typeof parsed?.updatedAt === 'number' && now - parsed.updatedAt <= MAX_AGE_MS) {
+            stale = false;
+          }
+        }
+      } catch {
+        // unparseable → treat as stale
+      }
+      if (stale) toDelete.push(key);
+    }
+    for (const key of toDelete) localStorage.removeItem(key);
+  }, []);
+
   // Listen for thread events
   useWebSocket(useCallback((msg: WSMessage) => {
     if (msg.type === 'thread_status') {

@@ -1,27 +1,67 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import styles from './ChatComposer.module.css';
 
+const DRAFT_PREFIX = 'trellis:draft:';
+
 interface ChatComposerProps {
+  threadId: string;
   onSend: (content: string) => void;
   disabled: boolean;
   isStreaming?: boolean;
   onAbort?: () => void;
 }
 
-export function ChatComposer({ onSend, disabled, isStreaming = false, onAbort }: ChatComposerProps) {
-  const [value, setValue] = useState('');
+function readDraft(threadId: string): string {
+  try {
+    const raw = localStorage.getItem(`${DRAFT_PREFIX}${threadId}`);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw) as { content?: unknown };
+    return typeof parsed?.content === 'string' ? parsed.content : '';
+  } catch {
+    return '';
+  }
+}
+
+export function ChatComposer({ threadId, onSend, disabled, isStreaming = false, onAbort }: ChatComposerProps) {
+  const [value, setValue] = useState(() => readDraft(threadId));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Resize textarea to fit a restored draft on mount.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta || !ta.value) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+  }, []);
+
+  // Debounced draft persistence. Empty value clears the entry.
+  useEffect(() => {
+    const key = `${DRAFT_PREFIX}${threadId}`;
+    const timeout = setTimeout(() => {
+      if (!value) {
+        localStorage.removeItem(key);
+        return;
+      }
+      try {
+        localStorage.setItem(key, JSON.stringify({ content: value, updatedAt: Date.now() }));
+      } catch {
+        // Best-effort: ignore quota / access errors.
+      }
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [threadId, value]);
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
     onSend(trimmed);
     setValue('');
+    localStorage.removeItem(`${DRAFT_PREFIX}${threadId}`);
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [value, disabled, onSend]);
+  }, [value, disabled, onSend, threadId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

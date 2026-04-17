@@ -77,8 +77,10 @@ pnpm test               # Vitest test suite
 
 After any `pnpm install` that touches native packages:
 ```bash
-npx electron-rebuild -f -w node-pty better-sqlite3
+pnpm run electron:rebuild
 ```
+
+(Wraps `@electron/rebuild -f -w node-pty better-sqlite3`.)
 
 ## Key Patterns
 
@@ -100,5 +102,5 @@ The tool loop in `src/session/runner.ts`: stream from LLM → if tool_use, execu
 pnpm run bundle  # creates ~/Desktop/trellis.bundle
 # Transfer the .bundle file, then on target:
 git clone trellis.bundle trellis
-cd trellis && pnpm install && npx electron-rebuild -f -w node-pty better-sqlite3
+cd trellis && pnpm install && pnpm run electron:rebuild
 ```

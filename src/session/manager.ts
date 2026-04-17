@@ -50,8 +50,9 @@ export class SessionManager {
     if (controller) {
       controller.abort();
       this.activeSessions.delete(threadId);
-      this.ctx.store.updateThreadStatus(threadId, 'idle');
-      this.ctx.broadcast(threadId, 'thread_status', { status: 'idle' });
+      this.ctx.store.updateThreadStatus(threadId, 'done');
+      this.ctx.broadcast(threadId, 'thread_stream_end', {});
+      this.ctx.broadcast(threadId, 'thread_status', { status: 'done' });
     }
   }
 

@@ -1,5 +1,5 @@
 import type { Thread, Workspace } from '@shared/types';
-import { useMessages, useSendMessage } from '../../hooks/useWorkspaces';
+import { useMessages, useSendMessage, useAbortSession } from '../../hooks/useWorkspaces';
 import { useChatStream } from '../../hooks/useChatStream';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatComposer } from './ChatComposer';
@@ -40,10 +40,16 @@ export function ChatPanel({
   const { data: messages } = useMessages(threadId);
   const { streamingText, isStreaming, error } = useChatStream(threadId);
   const sendMessage = useSendMessage();
+  const abortSession = useAbortSession();
 
   const handleSend = (content: string) => {
     if (!threadId) return;
     sendMessage.mutate({ threadId, content });
+  };
+
+  const handleAbort = () => {
+    if (!threadId) return;
+    abortSession.mutate(threadId);
   };
 
   if (!thread) {
@@ -108,6 +114,8 @@ export function ChatPanel({
       <ChatComposer
         onSend={handleSend}
         disabled={isStreaming || sendMessage.isPending}
+        isStreaming={isStreaming}
+        onAbort={handleAbort}
       />
 
       {terminalOpen && workspaceId && terminalCwd && (

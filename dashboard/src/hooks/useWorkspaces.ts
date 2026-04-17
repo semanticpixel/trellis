@@ -114,6 +114,15 @@ export function useSendMessage() {
   });
 }
 
+export function useAbortSession() {
+  return useMutation({
+    mutationFn: (threadId: string) =>
+      fetchJson<{ ok: boolean; wasRunning: boolean }>(`${API}/threads/${threadId}/abort`, {
+        method: 'POST',
+      }),
+  });
+}
+
 // ── Branches ───────────────────────────────────────────────
 
 export interface BranchInfo {

@@ -158,6 +158,17 @@ export function createRoutes(ctx: ServerContext): Router {
     res.status(204).end();
   });
 
+  router.post('/threads/:id/abort', (req, res) => {
+    const thread = store.getThread(req.params.id);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+    const wasRunning = sessionManager.isRunning(req.params.id);
+    sessionManager.abortSession(req.params.id);
+    res.json({ ok: true, wasRunning });
+  });
+
   // ── Messages ───────────────────────────────────────────────
 
   router.get('/threads/:threadId/messages', (req, res) => {

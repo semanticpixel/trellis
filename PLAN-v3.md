@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
@@ -71,7 +71,12 @@ Some items share infrastructure or unblock others. Do the upstream item first.
 
 ## Priority — things that'll bite you repeatedly
 
-### 1. Session state persistence across restarts
+### ~~1. Session state persistence across restarts~~ DONE
+
+Implemented in commit `3eaaeaa` (PR #37) via a new `dashboard/src/hooks/usePersistedSetting.ts` — a generic `useState` wrapper that hydrates from `/api/settings/:key` on mount and debounce-saves (300ms) on change, with an optional validator to drop malformed values. Persists `session.activeThreadId`, `session.activeWorkspaceId`, `sidebar.mode` (tree/flat), `review.activeTab` (diff/plan). Stale-ID cleanup: a 404 on the persisted thread, or a workspace no longer in the loaded list, clears the persisted ID. To preserve the welcome screen after restoring an active thread, the empty-thread case now renders `WelcomeState` inside the chat message area (composer stays mounted; suggestion cards send into the current thread). Out of scope and still open: `expandedWorkspaceIds`, `searchQuery`, `review.open`, `review.selectedFile`, `terminal.open`.
+
+<details>
+<summary>Original spec</summary>
 
 `activeThreadId` / `activeWorkspaceId` live in React state only. Quit the app, you lose your place. Persist to the settings table (or localStorage) and restore on mount. Also restore which sidebar mode (tree/flat), which tabs were open in the review panel, and which files were selected in DiffTab.
 
@@ -103,6 +108,8 @@ Some items share infrastructure or unblock others. Do the upstream item first.
 ou left it. Put laptop to sleep for 30 min, wake, same result.
 
 **Out of scope:** Syncing state across devices. Per-window state for multi-window support.
+
+</details>
 
 ### 2. Abort running session button
 

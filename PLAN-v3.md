@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
@@ -317,7 +317,12 @@ Lines 69-70 in `dashboard/src/ui/tokens.css` are identical. Remove the duplicate
 
 Fixed in commit `562805a` — swapped `overflow: hidden` to `overflow: clip` on `.block` in `ToolCallBlock.module.css`. The hidden container was collapsing content due to establishing a new block formatting context; `clip` still respects `border-radius` without that side effect. Follow-up item 38 (group consecutive tool calls) still open for a richer collapsed UX.
 
-### 21. Monaco DiffEditor disposal error when switching files or closing review panel
+### ~~21. Monaco DiffEditor disposal error when switching files or closing review panel~~ DONE
+
+Fixed in commit `6984f7f` (PR #46) via Option A — added `key={selectedFile}` to the `<DiffEditor>` in `DiffTab.tsx` so React fully unmounts the previous Monaco instance and mounts a fresh one on file switch, eliminating the TextModel-disposal race. Option B (keep-current-model props + manual lifecycle) and the `@monaco-editor/react` upgrade path remain available if this proves insufficient. Item 27 (sleek custom diff renderer) would subsume this change entirely by dropping Monaco from the review panel; until then the `key` prop stays.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** Uncaught error in console:
 ```
@@ -364,6 +369,8 @@ Recommended: **Option A** for quick fix. If the flicker is noticeable, move to *
 **References to investigate:**
 - https://github.com/suren-atoyan/monaco-react/issues (search "TextModel disposed")
 - React 19 migration notes on effect cleanup ordering
+
+</details>
 
 ### ~~22. App branding — replace "Electron" with "Trellis" in menu bar and dock~~ DONE
 

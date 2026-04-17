@@ -8,6 +8,10 @@ interface WelcomeStateProps {
   hasWorkspaces: boolean;
   workspaces: Workspace[];
   onStartWithPrompt: (workspaceId: string, prompt: string) => void;
+  // When set, suggestion clicks send into the existing (empty) thread instead
+  // of going through the new-thread/workspace-picker flow.
+  onPromptInThread?: (prompt: string) => void;
+  inThread?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -16,7 +20,13 @@ const SUGGESTIONS = [
   { icon: TestTube, label: 'Write tests', prompt: 'Identify untested code paths and help me write comprehensive tests for them.' },
 ];
 
-export function WelcomeState({ hasWorkspaces, workspaces, onStartWithPrompt }: WelcomeStateProps) {
+export function WelcomeState({
+  hasWorkspaces,
+  workspaces,
+  onStartWithPrompt,
+  onPromptInThread,
+  inThread,
+}: WelcomeStateProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [pickerPrompt, setPickerPrompt] = useState<string | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -44,6 +54,10 @@ export function WelcomeState({ hasWorkspaces, workspaces, onStartWithPrompt }: W
   }, [pickerPrompt]);
 
   const handleCardClick = (prompt: string) => {
+    if (onPromptInThread) {
+      onPromptInThread(prompt);
+      return;
+    }
     if (!hasWorkspaces) {
       setShowAddModal(true);
       return;
@@ -67,7 +81,11 @@ export function WelcomeState({ hasWorkspaces, workspaces, onStartWithPrompt }: W
     <div className={styles.container}>
       <h1 className={styles.heading}>Let's build</h1>
 
-      {hasWorkspaces ? (
+      {inThread ? (
+        <p className={styles.subtitle}>
+          Pick a prompt below or type your own.
+        </p>
+      ) : hasWorkspaces ? (
         <p className={styles.subtitle}>
           Select a thread from the sidebar, or pick a prompt below to get started.
         </p>

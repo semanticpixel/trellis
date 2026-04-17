@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkspaces, usePathCheck, useThreadSearch } from '../../hooks/useWorkspaces';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import { TreeView } from './TreeView';
 import { FlatView } from './FlatView';
 import { AddWorkspaceModal } from './AddWorkspaceModal';
@@ -17,9 +18,12 @@ interface SidebarProps {
   notifiedThreadIds: Set<string>;
 }
 
+type ViewMode = 'tree' | 'flat';
+const isViewMode = (v: unknown): v is ViewMode => v === 'tree' || v === 'flat';
+
 export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifiedThreadIds }: SidebarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
-  const [viewMode, setViewMode] = useState<'tree' | 'flat'>('tree');
+  const [viewMode, setViewMode] = usePersistedSetting<ViewMode>('sidebar.mode', 'tree', isViewMode);
   const [searchQuery, setSearchQuery] = useState('');
   const { data: workspaces } = useWorkspaces();
   const { data: pathCheck } = usePathCheck();

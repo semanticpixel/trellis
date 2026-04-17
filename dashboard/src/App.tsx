@@ -7,14 +7,26 @@ import { Resizer } from './components/layout/Resizer';
 import { useWorkspaces, useRepos, useCreateThread, useSendMessage } from './hooks/useWorkspaces';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelWidths } from './hooks/usePanelWidths';
+import { usePersistedSetting } from './hooks/usePersistedSetting';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Thread, WSMessage } from '@shared/types';
 import styles from './App.module.css';
 
+const isStringOrNull = (v: unknown): v is string | null =>
+  v === null || typeof v === 'string';
+
 export function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = usePersistedSetting<string | null>(
+    'session.activeThreadId',
+    null,
+    isStringOrNull,
+  );
+  const [activeWorkspaceId, setActiveWorkspaceId] = usePersistedSetting<string | null>(
+    'session.activeWorkspaceId',
+    null,
+    isStringOrNull,
+  );
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifiedThreadIds, setNotifiedThreadIds] = useState<Set<string>>(new Set());
@@ -34,14 +46,31 @@ export function App() {
   } = usePanelWidths();
   const qc = useQueryClient();
 
-  const { data: activeThread } = useQuery<Thread>({
+  const { data: activeThread, isError: activeThreadError } = useQuery<Thread>({
     queryKey: ['thread', activeThreadId],
     queryFn: async () => {
       const res = await fetch(`/api/threads/${activeThreadId}`);
+      if (!res.ok) throw new Error(`Thread fetch failed (${res.status})`);
       return res.json();
     },
     enabled: !!activeThreadId,
+    retry: false,
   });
+
+  // Drop persisted IDs that no longer point at real entities (thread/workspace
+  // deleted between sessions, or imported from a different machine).
+  useEffect(() => {
+    if (activeThreadId && activeThreadError) {
+      setActiveThreadId(null);
+    }
+  }, [activeThreadId, activeThreadError, setActiveThreadId]);
+
+  useEffect(() => {
+    if (!workspaces || !activeWorkspaceId) return;
+    if (!workspaces.some((w) => w.id === activeWorkspaceId)) {
+      setActiveWorkspaceId(null);
+    }
+  }, [workspaces, activeWorkspaceId, setActiveWorkspaceId]);
 
   const activeWorkspace = workspaces?.find((w) => w.id === activeWorkspaceId);
   const { data: repos } = useRepos(activeWorkspaceId ?? undefined);

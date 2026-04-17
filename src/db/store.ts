@@ -221,6 +221,15 @@ export class Store {
     this.db.prepare('DELETE FROM threads WHERE id = ?').run(id);
   }
 
+  recoverRunningThreads(): string[] {
+    const rows = this.db.prepare("SELECT id FROM threads WHERE status = 'running'").all() as { id: string }[];
+    if (rows.length === 0) return [];
+    this.db.prepare(
+      "UPDATE threads SET status = 'error', updated_at = CURRENT_TIMESTAMP WHERE status = 'running'"
+    ).run();
+    return rows.map(r => r.id);
+  }
+
   // ── Messages ───────────────────────────────────────────────
 
   listMessages(threadId: string, limit = 100, beforeId?: number): Message[] {

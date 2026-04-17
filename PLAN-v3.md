@@ -24,7 +24,7 @@ Every item below follows this structure. When adding new items, match the shape 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration), 41 (unread entry cleanup).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE).
 
 ### Dependency graph
 
@@ -1021,7 +1021,12 @@ Target: 50+ tests, under 5 seconds total runtime. Keep it fast so `pnpm test` st
 
 **Out of scope:** Auto-update (`electron-updater`) — separate item when you start shipping releases. Cross-platform signing (Windows code signing is its own rabbit hole).
 
-### 40. Migrate from `electron-rebuild` to `@electron/rebuild`
+### ~~40. Migrate from `electron-rebuild` to `@electron/rebuild`~~ DONE
+
+Implemented in commit `0873f77` (PR #51). Swapped to `@electron/rebuild@^4.0.3`; dropped the `npx` prefix from the `electron:rebuild` script since the binary is now a direct devDep on `node_modules/.bin`. Updated README and CLAUDE.md to point at `pnpm run electron:rebuild` instead of the raw command — less to remember, and the command survives any future binary rename. The binary name itself stayed `electron-rebuild`, so the script body only differs by the dropped `npx`.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** `pnpm run electron:rebuild` fails on systems with Python 3.12+ because the bundled `node-gyp@9.4.1` imports the removed `distutils` module:
 ```
@@ -1050,7 +1055,14 @@ ModuleNotFoundError: No module named 'distutils'
 
 **Out of scope:** Pinning or upgrading Electron itself. Reworking the build scripts.
 
-### 41. Clean up orphaned unread-count entries when threads are deleted
+</details>
+
+### ~~41. Clean up orphaned unread-count entries when threads are deleted~~ DONE
+
+Implemented in commit `c71051d` (PR #52). Added a `useQuery({ queryKey: ['threads'] })` at the App level for the full thread set (existing `qc.invalidateQueries({ queryKey: ['threads'] })` calls refetch it by prefix match, so workspace-delete cascades and status changes both refresh it). A `useMemo` derives `allKnownThreadIds` as a `Set<string>` (or `null` while the query is pending), and a single effect reconciles both `unreadCounts` (persisted) and `notifiedThreadIds` (in-memory) against it — each setter guards with a `changed` flag so unchanged state isn't rewritten. The pruner is a no-op while `allKnownThreadIds` is `null`, so the initial pending fetch never wipes live counts.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** When a thread is deleted, its entry in the `session.unreadCounts` map stays in localStorage forever. Harmless (nobody reads keys for non-existent threads) but accumulates over time.
 
@@ -1086,6 +1098,8 @@ useEffect(() => {
 **Acceptance:** Create a thread, let it accumulate unread count, delete it. Inspect `localStorage['trellis:setting:session.unreadCounts']` — the deleted thread's entry is gone.
 
 **Out of scope:** Cleanup on a timer (e.g. "expire entries older than N days"). Cleanup of other persisted state (review.selectedFile, etc.) — handle those if/when they're added and show the same pattern.
+
+</details>
 
 ---
 

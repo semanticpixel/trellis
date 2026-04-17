@@ -16,6 +16,15 @@ mkdirSync(DATA_DIR, { recursive: true });
 const dbPath = join(DATA_DIR, DB_FILENAME);
 const store = new Store(dbPath);
 
+// Recover threads left in 'running' status from a prior crash / forced quit.
+const recoveredThreadIds = store.recoverRunningThreads();
+for (const threadId of recoveredThreadIds) {
+  store.createMessage(threadId, 'assistant', 'Session interrupted (app restart)');
+}
+if (recoveredThreadIds.length > 0) {
+  console.log(`[trellis] Recovered ${recoveredThreadIds.length} interrupted session(s)`);
+}
+
 // Register LLM adapters from environment variables (bootstrap/fallback)
 if (process.env.ANTHROPIC_API_KEY) {
   registerAdapter(new AnthropicAdapter(process.env.ANTHROPIC_API_KEY));

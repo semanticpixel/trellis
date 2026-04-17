@@ -181,8 +181,9 @@ function createWindow() {
 // A custom menu is required so that Trellis-specific shortcuts
 // (Cmd+` for terminal, Cmd+Shift+D for review panel) are dispatched as
 // menu accelerators — which take precedence over the default menu's
-// zoom accelerators that would otherwise swallow Cmd+`. Deliberately
-// omits zoom items entirely.
+// zoom accelerators that would otherwise swallow Cmd+`. Zoom items are
+// kept on their standard accelerators (Cmd+Plus / Cmd+- / Cmd+0) which
+// don't collide with our shortcuts.
 function buildApplicationMenu() {
   const isMac = process.platform === 'darwin';
   const sendToRenderer = (channel) => () => {
@@ -237,6 +238,10 @@ function buildApplicationMenu() {
           accelerator: 'CmdOrCtrl+Shift+D',
           click: sendToRenderer('menu:toggle-review'),
         },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
       ],

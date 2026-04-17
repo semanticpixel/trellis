@@ -14,15 +14,20 @@ Multi-workspace LLM development environment. Run multiple AI coding sessions acr
 ## Setup
 
 ```bash
-# Install dependencies
+# Install dependencies (also builds native modules for system Node)
 pnpm install
-
-# Rebuild native modules for Electron
-pnpm run electron:rebuild
 
 # Start development
 pnpm run electron:dev
 ```
+
+If you ever see an `NODE_MODULE_VERSION` mismatch from `better-sqlite3` or `node-pty`, their binaries were compiled for the wrong runtime. Repair with:
+
+```bash
+pnpm run rebuild:native
+```
+
+Trellis's backend runs as a `tsx` subprocess under system Node — not inside Electron's main process — so native modules must target system Node, which `pnpm rebuild` does by default.
 
 ## API Keys
 
@@ -59,7 +64,6 @@ pnpm run bundle  # creates ~/Desktop/trellis.bundle
 git clone trellis.bundle trellis
 cd trellis
 pnpm install
-pnpm run electron:rebuild
 pnpm run electron:dev
 ```
 

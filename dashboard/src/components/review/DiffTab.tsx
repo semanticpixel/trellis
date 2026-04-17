@@ -245,6 +245,7 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
 
           <div className={styles.editor}>
             <DiffEditor
+              key={selectedFile}
               original={fileDiff.original}
               modified={fileDiff.modified}
               language={getLanguageFromFile(selectedFile)}

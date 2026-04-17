@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { ServerContext } from './server.js';
-import { existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, readdirSync, statSync, appendFileSync } from 'fs';
 import { join, basename } from 'path';
+import { homedir } from 'os';
 import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile, listBranches, checkoutBranch, createBranch, getCurrentBranch } from '../git/operations.js';
 import { formatFeedback } from '../review/feedback.js';
 import { parsePlan } from '../review/plan-parser.js';
@@ -563,6 +564,26 @@ export function createRoutes(ctx: ServerContext): Router {
     const { value } = req.body;
     store.setSetting(req.params.key, value);
     res.json({ key: req.params.key, value });
+  });
+
+  // ── Error Log ──────────────────────────────────────────────
+
+  router.post('/errors', (req, res) => {
+    const { message, stack, componentStack, label } = req.body ?? {};
+    const entry = {
+      timestamp: new Date().toISOString(),
+      message: typeof message === 'string' ? message : String(message ?? ''),
+      stack: typeof stack === 'string' ? stack : null,
+      componentStack: typeof componentStack === 'string' ? componentStack : null,
+      label: typeof label === 'string' ? label : null,
+    };
+    try {
+      const logPath = join(homedir(), '.trellis', 'errors.log');
+      appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf-8');
+      res.status(204).end();
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to write error log' });
+    }
   });
 
   // ── Workspace Path Check ───────────────────────────────────

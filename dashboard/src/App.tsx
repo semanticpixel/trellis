@@ -4,6 +4,7 @@ import { ChatPanel } from './components/chat/ChatPanel';
 import { ReviewPanel } from './components/review/ReviewPanel';
 import { SettingsOverlay } from './components/settings/SettingsOverlay';
 import { Resizer } from './components/layout/Resizer';
+import { ErrorBoundary } from './components/layout/ErrorBoundary';
 import { useWorkspaces, useRepos, useCreateThread, useSendMessage } from './hooks/useWorkspaces';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelWidths } from './hooks/usePanelWidths';
@@ -287,6 +288,7 @@ export function App() {
   } as React.CSSProperties;
 
   return (
+    <ErrorBoundary label="app">
     <div className={styles.shell} style={shellStyle}>
       <Sidebar
         activeThreadId={activeThreadId}
@@ -324,11 +326,13 @@ export function App() {
             onResize={resizeReview}
             onResizeEnd={persistReview}
           />
-          <ReviewPanel
-            thread={activeThread ?? null}
-            repoId={activeThread?.repo_id ?? null}
-            autoFocusFile={autoFocusFile}
-          />
+          <ErrorBoundary label="review">
+            <ReviewPanel
+              thread={activeThread ?? null}
+              repoId={activeThread?.repo_id ?? null}
+              autoFocusFile={autoFocusFile}
+            />
+          </ErrorBoundary>
         </>
       )}
 
@@ -336,5 +340,6 @@ export function App() {
         <SettingsOverlay onClose={() => setSettingsOpen(false)} />
       )}
     </div>
+    </ErrorBoundary>
   );
 }

@@ -5,6 +5,7 @@ import { ChatMessageList } from './ChatMessageList';
 import { ChatComposer } from './ChatComposer';
 import { ModelSelector } from './ModelSelector';
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal';
+import { ErrorBoundary } from '../layout/ErrorBoundary';
 import { WelcomeState } from './WelcomeState';
 import styles from './ChatPanel.module.css';
 
@@ -121,11 +122,13 @@ export function ChatPanel({
       />
 
       {terminalOpen && workspaceId && terminalCwd && (
-        <EmbeddedTerminal
-          workspaceId={workspaceId}
-          cwd={terminalCwd}
-          onClose={onCloseTerminal}
-        />
+        <ErrorBoundary label="terminal">
+          <EmbeddedTerminal
+            workspaceId={workspaceId}
+            cwd={terminalCwd}
+            onClose={onCloseTerminal}
+          />
+        </ErrorBoundary>
       )}
     </main>
   );

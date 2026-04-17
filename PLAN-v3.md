@@ -1101,6 +1101,52 @@ useEffect(() => {
 
 </details>
 
+
+### 42. Fix native module rebuild target mismatch
+
+**Symptom:** On a fresh clone, running `pnpm run electron:rebuild` followed by `pnpm run dev:server` (or `pnpm run electron:dev`) produces:
+
+```
+Error: The module '.../better-sqlite3/build/Release/better_sqlite3.node'
+was compiled against a different Node.js version using
+NODE_MODULE_VERSION 133. This version of Node.js requires
+NODE_MODULE_VERSION 115.
+```
+
+The reverse also happens: if you `pnpm install` fresh (prebuilt for system Node), then try to run the packaged app later where better-sqlite3 ends up in Electron's process, you'd get the opposite error.
+
+**Cause:** The `electron:rebuild` script compiles native modules against Electron's Node ABI (v22, `NODE_MODULE_VERSION 133`). But the backend doesn't run inside Electron — `electron-dev.mjs` spawns it as a separate `tsx` subprocess using **system Node** (v20, `NODE_MODULE_VERSION 115`). So the rebuild targets the wrong runtime for this architecture.
+
+ARCHITECTURE.md describes the backend as "running in-process with Electron main," but the actual implementation is a subprocess. That drift is what's causing the rebuild confusion.
+
+**Fix options:**
+
+**Option A — Just rename the rebuild script (quick, low-risk):** The native modules used by Trellis (`better-sqlite3`, `node-pty`) are only loaded by the backend, which runs under system Node. Swap `@electron/rebuild` for plain `pnpm rebuild`, which uses node-gyp against system Node.
+
+```diff
+- "electron:rebuild": "electron-rebuild -f -w node-pty better-sqlite3"
++ "rebuild:native": "pnpm rebuild better-sqlite3 node-pty"
+```
+
+Update README and CLAUDE.md to use the new name and explain why. Keep `@electron/rebuild` as a devDependency only if/when the Electron main process starts using native modules directly.
+
+**Option B — Move backend in-process with Electron (bigger, fixes the architectural drift):** Rework `electron/main.mjs` to instantiate the Express server and WebSocket directly in the main process instead of spawning a subprocess. The renderer loads from the same port (`http://localhost:3457` in prod) and everything shares Electron's Node runtime. Then `electron:rebuild` is correct and the ABI never drifts.
+
+Tradeoffs:
+- Option A: 5 minutes, no architectural change, keeps subprocess isolation (a crash in the backend doesn't kill the window, but you lose that anyway since the subprocess is also in-tree)
+- Option B: 1-2 hours, matches the stated architecture in ARCHITECTURE.md, eliminates a whole class of rebuild confusion, slightly simpler dev flow (one process to watch)
+
+Recommended: **Option A** now (you need dev unblocked), **Option B** as a separate future item when you're doing architectural cleanup.
+
+**Files to touch (Option A):**
+- `package.json` — rename script
+- `README.md`, `CLAUDE.md` — update rebuild instructions
+- `scripts/electron-dev.mjs` — no change needed
+
+**Acceptance:** Fresh clone → `pnpm install` → `pnpm run rebuild:native` → `pnpm run electron:dev` runs without ABI errors. Same command sequence works for anyone pulling the repo.
+
+**Out of scope:** Option B (separate item if/when pursued). Packaging-time rebuild concerns (item 39 handles that separately via electron-builder's `asarUnpack`).
+
 ---
 
 ## Known debt (carried from v2)

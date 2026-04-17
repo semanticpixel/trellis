@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
@@ -779,7 +779,12 @@ Recommended: **Option A** — the linked-signal pattern is the idiomatic fix and
 
 **Out of scope:** Export of annotations, plan files, or multi-thread export.
 
-### 32. Composer draft persistence
+### ~~32. Composer draft persistence~~ DONE
+
+Implemented in commit `d7c0216` (PR #44). `ChatComposer` now takes a `threadId` prop; its `useState` initializer hydrates from `localStorage['trellis:draft:<threadId>']` (stored as `{ content, updatedAt }`), a 500ms-debounced effect re-writes the key on every change (removing it when empty), and `handleSubmit` clears the key after `onSend`. `ChatPanel` passes `key={thread.id}` so the composer fully remounts per thread — each gets its own init from localStorage. A one-shot `useEffect` on app mount in `App.tsx` sweeps any `trellis:draft:*` entry older than 7 days (or unparseable). Deliberately did **not** reuse the `usePersistedSetting` hook (item 1) — drafts are ephemeral and benefit from synchronous, no-roundtrip writes per keystroke, so they belong in localStorage rather than the backend settings table.
+
+<details>
+<summary>Original spec</summary>
 
 **What:** If you type a message but don't send it, then switch threads (or the app crashes), the draft should be there when you come back.
 
@@ -797,6 +802,8 @@ Recommended: **Option A** — the linked-signal pattern is the idiomatic fix and
 **Acceptance:** Type a message, switch threads, switch back — draft is still there. Send the message — draft is cleared.
 
 **Out of scope:** Syncing drafts across machines or storing in the backend DB.
+
+</details>
 
 ### 33. React error boundaries
 

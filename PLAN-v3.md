@@ -819,7 +819,12 @@ Implemented in commit `d7c0216` (PR #44). `ChatComposer` now takes a `threadId` 
 
 </details>
 
-### 33. React error boundaries
+### ~~33. React error boundaries~~ DONE
+
+Implemented in commit `b2917e0` (PR #57). Added `ErrorBoundary` class component (`dashboard/src/components/layout/`) using `getDerivedStateFromError` + `componentDidCatch`; fallback UI renders an `AlertTriangle` icon, the error message, a **Reload** button (window reload) and a **Report** button (copies message + stack + component stack to the clipboard, with a 2s "Copied" confirmation). Wrapped three levels: top-level in `App.tsx`, around `ReviewPanel`, and around `EmbeddedTerminal` (wrapped inside `ChatPanel.tsx`, since that's where it's rendered — not in `App.tsx` as originally sketched). `componentDidCatch` fires-and-forgets a POST to the new `/api/errors` endpoint in `src/api/routes.ts`, which appends a JSONL entry (`timestamp`, `message`, `stack`, `componentStack`, `label`) to `~/.trellis/errors.log`. Styling via CSS Modules + `tokens.css` only.
+
+<details>
+<summary>Original spec</summary>
 
 **What:** If any component in the tree throws, show a friendly error UI with a "Reload" button instead of a white screen.
 
@@ -844,6 +849,8 @@ Implemented in commit `d7c0216` (PR #44). `ChatComposer` now takes a `threadId` 
 **Acceptance:** Temporarily throw in a component, verify the error UI renders and reload works. Other components (sidebar, chat) still function.
 
 **Out of scope:** Automatic error reporting to a remote service.
+
+</details>
 
 ### 34. Image paste / drop in composer
 

@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
@@ -131,9 +131,16 @@ Every thread starts fresh with the same default system prompt. Add a per-workspa
 - Loaded by `SessionRunner` at the start of each run and prepended to system prompt
 - Per-thread `system_prompt` still layers on top
 
-### 4. Session recovery on startup
+### ~~4. Session recovery on startup~~ DONE
+
+Implemented in commit `ce6a065` (PR #42). New `Store.recoverRunningThreads()` runs a single SQL `UPDATE` to mark any `status = 'running'` threads as `error` and returns the affected IDs; `src/index.ts` appends an `"Session interrupted (app restart)"` assistant message on each (matching the `runner.ts` pattern for system-ish notices) and logs the recovered count. Runs after `new Store(...)` and before `createServer` — no routes, no WS broadcasts needed since no clients are connected at that point.
+
+<details>
+<summary>Original spec</summary>
 
 If the app quits mid-stream, threads stuck at `status: 'running'` stay that way forever. On backend startup, scan for `running` threads and mark them `error` with a sentinel message: "Session interrupted (app restart)". User can re-send the last message to retry.
+
+</details>
 
 ### 5. Unread content indicator
 

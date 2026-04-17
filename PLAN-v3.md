@@ -75,6 +75,35 @@ Some items share infrastructure or unblock others. Do the upstream item first.
 
 `activeThreadId` / `activeWorkspaceId` live in React state only. Quit the app, you lose your place. Persist to the settings table (or localStorage) and restore on mount. Also restore which sidebar mode (tree/flat), which tabs were open in the review panel, and which files were selected in DiffTab.
 
+**Trigger scenarios (all should restore full state):**
+- App quit + relaunch
+- Laptop sleep + wake (process may be reaped by macOS during sleep; even if it survives, WS reconnect can't rebuild state
+ that was only in React memory)
+- App crash + restart
+- Switching between browser dev mode and Electron during development
+
+**Fix:** Persist on every state change (debounced, ~300ms), read on mount. State keys to persist:
+- `session.activeThreadId`
+- `session.activeWorkspaceId`
+- `sidebar.mode` (tree | flat)
+- `sidebar.expandedWorkspaceIds` (Set)
+- `sidebar.searchQuery` (optional — debatable whether to persist)
+- `review.open` (boolean)
+- `review.activeTab` (diff | plan)
+- `review.selectedFile` (per repo)
+- `terminal.open` (boolean)
+- `layout.sidebarWidth`, `layout.reviewWidth` (already persisted — confirm still working)
+
+**Files to touch:**
+- `dashboard/src/hooks/usePersistedState.ts` (new) — generic `useState` + localStorage wrapper with debounced writes
+- `dashboard/src/App.tsx` — migrate each piece of state to the hook
+- Or: keep state in React Query cache keyed by user, hydrated from backend settings table
+
+**Acceptance:** Open a thread, toggle review panel, select a diff file, close app, reopen — everything is exactly where y
+ou left it. Put laptop to sleep for 30 min, wake, same result.
+
+**Out of scope:** Syncing state across devices. Per-window state for multi-window support.
+
 ### 2. Abort running session button
 
 `SessionManager.abortSession()` exists but isn't wired to the UI. Add a Stop button next to the composer when `isStreaming` is true. Clicking it should call `POST /api/threads/:id/abort` which invokes `sessionManager.abortSession(threadId)`. On the next stream event, broadcast `thread_status: 'done'` and clear any streaming state.

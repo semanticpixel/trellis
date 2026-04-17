@@ -88,6 +88,7 @@ export class Store {
         text TEXT NOT NULL,
         replacement TEXT,
         resolved INTEGER NOT NULL DEFAULT 0,
+        context_snippet TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -107,6 +108,17 @@ export class Store {
         value TEXT NOT NULL
       );
     `);
+
+    // Idempotent ALTERs for columns added after the original schema. SQLite
+    // has no "ADD COLUMN IF NOT EXISTS", so swallow the duplicate-column
+    // error and let everything else propagate.
+    try {
+      this.db.exec('ALTER TABLE annotations ADD COLUMN context_snippet TEXT');
+    } catch (err) {
+      if (!(err instanceof Error) || !err.message.includes('duplicate column')) {
+        throw err;
+      }
+    }
   }
 
   close(): void {
@@ -270,9 +282,18 @@ export class Store {
   createAnnotation(threadId: string, req: CreateAnnotationRequest): Annotation {
     const id = uuid();
     this.db.prepare(
-      `INSERT INTO annotations (id, thread_id, target_type, target_ref, annotation_type, text, replacement)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, threadId, req.target_type, req.target_ref, req.annotation_type, req.text, req.replacement ?? null);
+      `INSERT INTO annotations (id, thread_id, target_type, target_ref, annotation_type, text, replacement, context_snippet)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      threadId,
+      req.target_type,
+      req.target_ref,
+      req.annotation_type,
+      req.text,
+      req.replacement ?? null,
+      req.context_snippet ?? null,
+    );
     return this.db.prepare('SELECT * FROM annotations WHERE id = ?').get(id) as Annotation;
   }
 

@@ -15,6 +15,23 @@
   border-left-color: var(--text-tertiary);
 }
 
+.stale {
+  opacity: 0.5;
+  border-left-color: var(--text-tertiary);
+}
+
+.outdatedPill {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-code);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+}
+
 .header {
   display: flex;
   align-items: center;

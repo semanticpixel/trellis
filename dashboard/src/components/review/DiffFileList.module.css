@@ -78,6 +78,11 @@
   flex-shrink: 0;
 }
 
+.outdatedCount {
+  background: var(--bg-code);
+  color: var(--text-secondary);
+}
+
 .additions {
   color: var(--success);
 }

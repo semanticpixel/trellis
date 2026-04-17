@@ -33,6 +33,7 @@ export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps)
   const sendFeedback = useSendFeedback();
 
   const unresolvedAnnotations = annotations?.filter((a) => a.resolved === 0) ?? [];
+  const activeAnnotations = unresolvedAnnotations.filter((a) => !a.stale);
   const selectedUnresolved = unresolvedAnnotations.filter((a) => selectedAnnotationIds.has(a.id));
 
   const toggleAnnotationSelection = useCallback((id: string) => {
@@ -48,8 +49,10 @@ export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps)
   }, []);
 
   const selectAllUnresolved = useCallback(() => {
-    setSelectedAnnotationIds(new Set(unresolvedAnnotations.map((a) => a.id)));
-  }, [unresolvedAnnotations]);
+    // Default "All" excludes outdated annotations — reviewer can still
+    // tick them individually if they want to resend.
+    setSelectedAnnotationIds(new Set(activeAnnotations.map((a) => a.id)));
+  }, [activeAnnotations]);
 
   const handleSendFeedback = useCallback(() => {
     if (!threadId || selectedUnresolved.length === 0) return;
@@ -103,9 +106,9 @@ export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps)
             <button
               className={styles.selectAll}
               onClick={selectAllUnresolved}
-              title="Select all unresolved annotations"
+              title="Select all active (non-outdated) annotations"
             >
-              All ({unresolvedAnnotations.length})
+              All ({activeAnnotations.length})
             </button>
             <button
               className={styles.sendFeedback}

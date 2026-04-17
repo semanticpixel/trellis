@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import type { ServerContext } from './server.js';
 import { existsSync, readdirSync, statSync, appendFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { homedir } from 'os';
 import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile, listBranches, checkoutBranch, createBranch, getCurrentBranch } from '../git/operations.js';
 import { formatFeedback } from '../review/feedback.js';
 import { parsePlan } from '../review/plan-parser.js';
+import { captureSnippet, parseDiffLineRef, findStaleAnnotations } from '../review/anchoring.js';
 import { registerAdapter, hasAdapter, listAdapters } from '../llm/adapter.js';
 import { AnthropicAdapter } from '../llm/anthropic.js';
 import { OpenAIAdapter } from '../llm/openai.js';
@@ -220,13 +222,66 @@ export function createRoutes(ctx: ServerContext): Router {
 
   // ── Annotations ────────────────────────────────────────────
 
-  router.get('/threads/:threadId/annotations', (req, res) => {
+  // Resolve a thread's working-tree root for file-content lookups. Returns
+  // null when the thread has no associated repo or the repo path is gone.
+  function getThreadRepoPath(threadId: string): string | null {
+    const thread = store.getThread(threadId);
+    if (!thread?.repo_id) return null;
+    const repo = store.getRepo(thread.repo_id);
+    if (!repo || !existsSync(repo.path)) return null;
+    return repo.path;
+  }
+
+  router.get('/threads/:threadId/annotations', async (req, res) => {
     const annotations = store.listAnnotations(req.params.threadId);
-    res.json(annotations);
+    const repoPath = getThreadRepoPath(req.params.threadId);
+
+    if (!repoPath) {
+      // No repo to compare against → nothing can be stale.
+      res.json(annotations.map((a) => ({ ...a, stale: false })));
+      return;
+    }
+
+    const staleIds = await findStaleAnnotations(annotations, async (relPath) => {
+      try {
+        return await readFile(join(repoPath, relPath), 'utf-8');
+      } catch {
+        return null;
+      }
+    });
+
+    res.json(annotations.map((a) => ({ ...a, stale: staleIds.has(a.id) })));
   });
 
-  router.post('/threads/:threadId/annotations', (req, res) => {
-    const annotation = store.createAnnotation(req.params.threadId, req.body);
+  router.post('/threads/:threadId/annotations', async (req, res) => {
+    const { target_type, target_ref, annotation_type, text, replacement } = req.body;
+    let context_snippet: string | undefined;
+
+    // For diff_line annotations, capture a 3-line snippet of the current
+    // working-tree content so future renders can detect staleness.
+    if (target_type === 'diff_line' && typeof target_ref === 'string') {
+      const ref = parseDiffLineRef(target_ref);
+      const repoPath = getThreadRepoPath(req.params.threadId);
+      if (ref && repoPath) {
+        try {
+          const content = await readFile(join(repoPath, ref.path), 'utf-8');
+          context_snippet = captureSnippet(content, ref.line);
+        } catch {
+          // File missing/unreadable — leave snippet empty; comparator treats
+          // missing snippets as fresh, which is a safer default than
+          // mass-marking-stale on the very first read.
+        }
+      }
+    }
+
+    const annotation = store.createAnnotation(req.params.threadId, {
+      target_type,
+      target_ref,
+      annotation_type,
+      text,
+      replacement,
+      context_snippet,
+    });
     res.status(201).json(annotation);
   });
 

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
-import { DiffFileList } from './DiffFileList';
+import { DiffFileList, type AnnotationCount } from './DiffFileList';
 import { InlineComment } from './InlineComment';
 import { AnnotationBadge } from './AnnotationBadge';
 import {
@@ -56,12 +56,16 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
     (a) => a.target_type === 'diff_line' && a.target_ref.startsWith(selectedFile + ':'),
   );
 
-  // Count unresolved annotations per file for the file-list badges.
-  const annotationCounts = annotations.reduce<Record<string, number>>((acc, a) => {
+  // Count unresolved annotations per file for the file-list badges, split
+  // into active vs outdated so reviewers see where fresh attention is needed.
+  const annotationCounts = annotations.reduce<Record<string, AnnotationCount>>((acc, a) => {
     if (a.target_type !== 'diff_line' || a.resolved === 1) return acc;
     const path = a.target_ref.slice(0, a.target_ref.lastIndexOf(':'));
     if (!path) return acc;
-    acc[path] = (acc[path] ?? 0) + 1;
+    const entry = acc[path] ?? { active: 0, outdated: 0 };
+    if (a.stale === true) entry.outdated += 1;
+    else entry.active += 1;
+    acc[path] = entry;
     return acc;
   }, {});
 
@@ -119,12 +123,18 @@ export function DiffTab({ thread, repoId, annotations, selectedAnnotationIds, on
 
         for (const annotation of lineAnnotations) {
           const badgeEl = document.createElement('div');
-          badgeEl.className = `${styles.viewZoneBadge} ${annotation.resolved === 1 ? styles.viewZoneResolved : ''}`;
+          const stale = annotation.resolved === 0 && annotation.stale === true;
+          const muted = annotation.resolved === 1 || stale;
+          badgeEl.className = `${styles.viewZoneBadge} ${muted ? styles.viewZoneResolved : ''}`;
 
           const typeLabel = annotation.annotation_type.toUpperCase();
+          const outdatedPill = stale
+            ? `<span class="${styles.viewZoneOutdatedPill}" title="Code at this line has changed since the comment was written">outdated</span>`
+            : '';
           badgeEl.innerHTML = `
             <div class="${styles.viewZoneBadgeHeader}">
               <span class="${styles.viewZoneBadgeType}">${typeLabel}</span>
+              ${outdatedPill}
             </div>
             <div class="${styles.viewZoneBadgeText}">${escapeHtml(annotation.text)}</div>
             ${annotation.replacement ? `<div class="${styles.viewZoneBadgeReplacement}"><code>${escapeHtml(annotation.replacement)}</code></div>` : ''}

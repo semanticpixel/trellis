@@ -16,6 +16,10 @@ interface Window {
     dialog: {
       openDirectory: () => Promise<string | null>;
     };
+    menu: {
+      onToggleTerminal: (cb: () => void) => () => void;
+      onToggleReview: (cb: () => void) => () => void;
+    };
     platform: string;
   };
 }

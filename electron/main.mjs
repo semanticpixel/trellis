@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -6,6 +6,9 @@ import { homedir } from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Must be set before app.whenReady() so the macOS app menu picks it up.
+app.name = 'Trellis';
 
 const SERVER_PORT = 3457;
 const DATA_DIR = join(homedir(), '.trellis');
@@ -173,9 +176,93 @@ function createWindow() {
   });
 }
 
+// ── Application Menu ───────────────────────────────────────────
+
+// A custom menu is required so that Trellis-specific shortcuts
+// (Cmd+` for terminal, Cmd+Shift+D for review panel) are dispatched as
+// menu accelerators — which take precedence over the default menu's
+// zoom accelerators that would otherwise swallow Cmd+`. Deliberately
+// omits zoom items entirely.
+function buildApplicationMenu() {
+  const isMac = process.platform === 'darwin';
+  const sendToRenderer = (channel) => () => {
+    mainWindow?.webContents.send(channel);
+  };
+
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: 'Trellis',
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        {
+          label: 'Toggle Terminal',
+          accelerator: 'CmdOrCtrl+`',
+          click: sendToRenderer('menu:toggle-terminal'),
+        },
+        {
+          label: 'Toggle Review Panel',
+          accelerator: 'CmdOrCtrl+Shift+D',
+          click: sendToRenderer('menu:toggle-review'),
+        },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'close' },
+        ...(isMac
+          ? [
+              { type: 'separator' },
+              { role: 'front' },
+            ]
+          : []),
+      ],
+    },
+  ];
+
+  return Menu.buildFromTemplate(template);
+}
+
 // ── App Lifecycle ──────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(buildApplicationMenu());
   createWindow();
   // Re-register any adapters whose keys were persisted from a previous run.
   // Fire-and-forget: the window loads independently while this runs.

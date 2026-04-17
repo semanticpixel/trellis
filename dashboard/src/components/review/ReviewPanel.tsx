@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAnnotations, useSendFeedback } from '../../hooks/useReview';
+import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import type { Thread } from '@shared/types';
 import styles from './ReviewPanel.module.css';
 
@@ -9,6 +10,7 @@ const DiffTab = lazy(() => import('./DiffTab').then((m) => ({ default: m.DiffTab
 const PlanTab = lazy(() => import('./PlanTab').then((m) => ({ default: m.PlanTab })));
 
 type TabId = 'diff' | 'plan';
+const isTabId = (v: unknown): v is TabId => v === 'diff' || v === 'plan';
 
 interface ReviewPanelProps {
   thread: Thread | null;
@@ -17,7 +19,7 @@ interface ReviewPanelProps {
 }
 
 export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('diff');
+  const [activeTab, setActiveTab] = usePersistedSetting<TabId>('review.activeTab', 'diff', isTabId);
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {

@@ -83,11 +83,23 @@ export function ChatPanel({
         </div>
       </div>
 
-      <ChatMessageList
-        messages={messages ?? []}
-        streamingText={streamingText}
-        isStreaming={isStreaming}
-      />
+      {messages !== undefined && messages.length === 0 && !isStreaming ? (
+        <div className={styles.empty}>
+          <WelcomeState
+            hasWorkspaces={hasWorkspaces}
+            workspaces={workspaces}
+            onStartWithPrompt={onStartWithPrompt}
+            onPromptInThread={(prompt) => sendMessage.mutate({ threadId: thread.id, content: prompt })}
+            inThread
+          />
+        </div>
+      ) : (
+        <ChatMessageList
+          messages={messages ?? []}
+          streamingText={streamingText}
+          isStreaming={isStreaming}
+        />
+      )}
 
       {error && (
         <div className={styles.errorBar}>{error}</div>

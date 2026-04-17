@@ -13,9 +13,10 @@ interface RepoRowProps {
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
   notifiedThreadIds: Set<string>;
+  unreadCounts: Record<string, number>;
 }
 
-export function RepoRow({ repo, threads, activeThreadId, onSelectThread, onNewThread, notifiedThreadIds }: RepoRowProps) {
+export function RepoRow({ repo, threads, activeThreadId, onSelectThread, onNewThread, notifiedThreadIds, unreadCounts }: RepoRowProps) {
   const containsActive = threads.some((t) => t.id === activeThreadId);
   const [expanded, setExpanded] = useState(containsActive || threads.length > 0);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -82,6 +83,7 @@ export function RepoRow({ repo, threads, activeThreadId, onSelectThread, onNewTh
                 thread={t}
                 isActive={t.id === activeThreadId}
                 hasNotification={notifiedThreadIds.has(t.id)}
+                unreadCount={unreadCounts[t.id] ?? 0}
                 onSelect={() => onSelectThread(t.id)}
               />
             ))

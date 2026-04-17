@@ -15,6 +15,14 @@ import styles from './App.module.css';
 const isStringOrNull = (v: unknown): v is string | null =>
   v === null || typeof v === 'string';
 
+const isUnreadCounts = (v: unknown): v is Record<string, number> =>
+  typeof v === 'object' &&
+  v !== null &&
+  !Array.isArray(v) &&
+  Object.values(v as Record<string, unknown>).every(
+    (n) => typeof n === 'number' && Number.isFinite(n),
+  );
+
 export function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [activeThreadId, setActiveThreadId] = usePersistedSetting<string | null>(
@@ -30,6 +38,11 @@ export function App() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifiedThreadIds, setNotifiedThreadIds] = useState<Set<string>>(new Set());
+  const [unreadCounts, setUnreadCounts] = usePersistedSetting<Record<string, number>>(
+    'session.unreadCounts',
+    {},
+    isUnreadCounts,
+  );
   const [autoFocusFile, setAutoFocusFile] = useState<{ path: string; token: number } | null>(null);
   const { data: workspaces } = useWorkspaces();
   const createThread = useCreateThread();
@@ -89,7 +102,13 @@ export function App() {
       next.delete(threadId);
       return next;
     });
-  }, []);
+    setUnreadCounts((prev) => {
+      if (!prev[threadId]) return prev;
+      const next = { ...prev };
+      delete next[threadId];
+      return next;
+    });
+  }, [setActiveThreadId, setActiveWorkspaceId, setUnreadCounts]);
 
   const handleStartWithPrompt = useCallback((workspaceId: string, prompt: string) => {
     createThread.mutate(
@@ -144,6 +163,14 @@ export function App() {
       }
     }
 
+    if (msg.type === 'thread_message' && msg.threadId !== activeThreadIdRef.current) {
+      const threadId = msg.threadId;
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [threadId]: (prev[threadId] ?? 0) + 1,
+      }));
+    }
+
     // Auto-open the review panel and focus on the changed file when the
     // LLM writes or edits a file in the active thread.
     if (msg.type === 'thread_tool_end' && msg.threadId === activeThreadIdRef.current) {
@@ -158,7 +185,7 @@ export function App() {
         }
       }
     }
-  }, [qc]));
+  }, [qc, setUnreadCounts]));
 
   // Global keyboard shortcuts (non-menu shortcuts only — menu-driven
   // accelerators like Cmd+` and Cmd+Shift+D are registered in the
@@ -223,6 +250,7 @@ export function App() {
         onSelectThread={handleSelectThread}
         onOpenSettings={() => setSettingsOpen(true)}
         notifiedThreadIds={notifiedThreadIds}
+        unreadCounts={unreadCounts}
       />
 
       <Resizer

@@ -185,3 +185,19 @@
   background: var(--accent);
   flex-shrink: 0;
 }
+
+.unreadBadge {
+  min-width: 16px;
+  height: 14px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

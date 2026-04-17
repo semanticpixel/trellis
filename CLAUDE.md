@@ -75,12 +75,13 @@ pnpm test               # Vitest test suite
 
 ## Native Module Rebuild
 
-After any `pnpm install` that touches native packages:
+`pnpm install` auto-rebuilds `better-sqlite3` and `node-pty` for system Node (via `pnpm.onlyBuiltDependencies` in package.json). If you hit a `NODE_MODULE_VERSION` mismatch at runtime, repair with:
+
 ```bash
-pnpm run electron:rebuild
+pnpm run rebuild:native
 ```
 
-(Wraps `@electron/rebuild -f -w node-pty better-sqlite3`.)
+Trellis's backend runs as a `tsx` subprocess under system Node — not inside Electron's main process — so native modules must target system Node's ABI, which `pnpm rebuild` does by default. Do NOT use `@electron/rebuild` here; it would target Electron's ABI and break the backend subprocess.
 
 ## Key Patterns
 
@@ -102,5 +103,5 @@ The tool loop in `src/session/runner.ts`: stream from LLM → if tool_use, execu
 pnpm run bundle  # creates ~/Desktop/trellis.bundle
 # Transfer the .bundle file, then on target:
 git clone trellis.bundle trellis
-cd trellis && pnpm install && pnpm run electron:rebuild
+cd trellis && pnpm install
 ```

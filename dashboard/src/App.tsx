@@ -106,17 +106,12 @@ export function App() {
     }
   }, [qc]));
 
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts (non-menu shortcuts only — menu-driven
+  // accelerators like Cmd+` and Cmd+Shift+D are registered in the
+  // Electron application menu and dispatched via IPC below).
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
-
-      // Cmd+` — toggle terminal
-      if (meta && e.key === '`') {
-        e.preventDefault();
-        setTerminalOpen((prev) => !prev);
-        return;
-      }
 
       // Cmd+N — new thread in active workspace
       if (meta && e.key === 'n' && !e.shiftKey) {
@@ -143,17 +138,24 @@ export function App() {
         }
         return;
       }
-
-      // Cmd+Shift+D — toggle review panel
-      if (meta && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
-        e.preventDefault();
-        setReviewPanelOpen((prev) => !prev);
-        return;
-      }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [activeWorkspaceId, workspaces, createThread]);
+
+  // Electron application menu → renderer bridge. When running in a plain
+  // browser (dev without Electron shell), window.api is undefined and the
+  // toggles are only reachable by clicking the in-app buttons.
+  useEffect(() => {
+    const menu = window.api?.menu;
+    if (!menu) return;
+    const offTerminal = menu.onToggleTerminal(() => setTerminalOpen((prev) => !prev));
+    const offReview = menu.onToggleReview(() => setReviewPanelOpen((prev) => !prev));
+    return () => {
+      offTerminal();
+      offReview();
+    };
+  }, []);
 
   const shellStyle = {
     '--sidebar-width': `${sidebarWidth}px`,

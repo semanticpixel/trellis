@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
@@ -142,9 +142,16 @@ If the app quits mid-stream, threads stuck at `status: 'running'` stay that way 
 
 </details>
 
-### 5. Unread content indicator
+### ~~5. Unread content indicator~~ DONE
+
+Implemented in commit `86f0388` (PR #48). New `unreadCounts: Record<string, number>` map lives at the App level, persisted via `usePersistedSetting('session.unreadCounts', ...)` with a shape validator that drops malformed values. The WebSocket handler increments the count when `msg.type === 'thread_message' && msg.threadId !== activeThreadIdRef.current`; `handleSelectThread` deletes the entry on select, alongside the existing `notifiedThreadIds` clear (both signals coexist — status dot vs. message count). The map threads down through `Sidebar → TreeView → WorkspaceBlock → (ThreadRow | RepoRow → ThreadRow)` and `Sidebar → FlatView`; the sidebar search list reads it too. Rendered as an accent-colored pill badge (matching the `--accent` token used elsewhere) next to the thread title when `unread > 0` and the thread isn't active. Note: every `thread_message` broadcast increments — that includes tool-use and tool-result messages, not just pure assistant text. For a session with many tool calls this produces a large count; if it reads as noisy in practice, narrow the increment to `role === 'assistant' && tool_name === null` in a follow-up.
+
+<details>
+<summary>Original spec</summary>
 
 Currently the notification dot only fires on `thread_status` changes. If the LLM finishes streaming while you're on another thread, the dot might clear before you see it. Track "unseen messages" per thread: when a `thread_message` arrives for a non-active thread, mark it unseen. Clear when user selects the thread. Show a small count badge on the thread row.
+
+</details>
 
 ### 6. MCP server integration (priority)
 

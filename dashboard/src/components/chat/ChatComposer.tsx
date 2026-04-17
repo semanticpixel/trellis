@@ -60,7 +60,6 @@ export function ChatComposer({ onSend, disabled, isStreaming = false, onAbort }:
             aria-label="Stop generating"
           >
             <span className={styles.stopIcon} aria-hidden="true" />
-            Stop
           </button>
         )}
       </div>

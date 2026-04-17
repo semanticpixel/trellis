@@ -38,15 +38,14 @@
   bottom: 8px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   background: var(--bg-input);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
+  border-radius: 50%;
   color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  line-height: 1;
   cursor: pointer;
 }
 
@@ -57,8 +56,8 @@
 
 .stopIcon {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   background: currentColor;
   border-radius: 1px;
 }

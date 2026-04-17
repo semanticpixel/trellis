@@ -4,9 +4,11 @@ import styles from './ChatComposer.module.css';
 interface ChatComposerProps {
   onSend: (content: string) => void;
   disabled: boolean;
+  isStreaming?: boolean;
+  onAbort?: () => void;
 }
 
-export function ChatComposer({ onSend, disabled }: ChatComposerProps) {
+export function ChatComposer({ onSend, disabled, isStreaming = false, onAbort }: ChatComposerProps) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -38,16 +40,30 @@ export function ChatComposer({ onSend, disabled }: ChatComposerProps) {
 
   return (
     <div className={styles.composer}>
-      <textarea
-        ref={textareaRef}
-        className={styles.input}
-        value={value}
-        onChange={handleInput}
-        onKeyDown={handleKeyDown}
-        placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-        rows={1}
-        disabled={disabled}
-      />
+      <div className={styles.inputWrap}>
+        <textarea
+          ref={textareaRef}
+          className={styles.input}
+          value={value}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+          rows={1}
+          disabled={disabled}
+        />
+        {isStreaming && onAbort && (
+          <button
+            type="button"
+            className={styles.stopButton}
+            onClick={onAbort}
+            title="Stop generating"
+            aria-label="Stop generating"
+          >
+            <span className={styles.stopIcon} aria-hidden="true" />
+            Stop
+          </button>
+        )}
+      </div>
     </div>
   );
 }

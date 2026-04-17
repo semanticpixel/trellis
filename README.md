@@ -18,7 +18,7 @@ Multi-workspace LLM development environment. Run multiple AI coding sessions acr
 pnpm install
 
 # Rebuild native modules for Electron
-npx electron-rebuild -f -w node-pty better-sqlite3
+pnpm run electron:rebuild
 
 # Start development
 pnpm run electron:dev
@@ -59,7 +59,7 @@ pnpm run bundle  # creates ~/Desktop/trellis.bundle
 git clone trellis.bundle trellis
 cd trellis
 pnpm install
-npx electron-rebuild -f -w node-pty better-sqlite3
+pnpm run electron:rebuild
 pnpm run electron:dev
 ```
 

@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "electron:dev": "node scripts/electron-dev.mjs",
-    "electron:rebuild": "npx electron-rebuild -f -w node-pty better-sqlite3",
+    "electron:rebuild": "electron-rebuild -f -w node-pty better-sqlite3",
     "bundle": "git bundle create ~/Desktop/trellis.bundle --all"
   },
   "dependencies": {
@@ -32,6 +32,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@types/better-sqlite3": "^7.6.0",
     "@types/cors": "^2.8.0",
     "@types/express": "^5.0.0",
@@ -39,7 +40,6 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.0",
     "electron": "^35.0.0",
-    "electron-rebuild": "^3.2.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

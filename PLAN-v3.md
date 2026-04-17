@@ -344,13 +344,12 @@ Recommended: **Option A** for quick fix. If the flicker is noticeable, move to *
 - https://github.com/suren-atoyan/monaco-react/issues (search "TextModel disposed")
 - React 19 migration notes on effect cleanup ordering
 
-### 22. App branding — replace "Electron" with "Trellis" in menu bar and dock (partial)
+### 22. App branding — replace "Electron" with "Trellis" in menu bar and dock (dev done; packaging pending)
 
-**Status:** Menu bar label fixed (done as part of item 23 — custom menu in `main.mjs` uses "Trellis" for the app menu label, and `app.name = 'Trellis'` is set before `app.whenReady()`). Remaining work: dock icon + packaged-app config.
+**Status (dev):** Done. Menu bar label fixed via item 23's custom menu (`app.name = 'Trellis'` before `app.whenReady()`). Dock icon now set in `main.mjs::app.whenReady()` via `app.dock?.setIcon(...)` using the `assets/png-{light,dark}/icon-1024.png` variant that contrasts with `nativeTheme.shouldUseDarkColors`. Windows/Linux take the icon through `BrowserWindow.icon`. Assets (`icon.icns`, `icon.ico`, PNG sets at 16–1024 px, light + dark SVG sources) live under `assets/`.
 
-**What's left:**
-1. **Dock icon (dev):** add `app.dock?.setIcon(path.join(__dirname, '../build/icon.png'))` in `main.mjs` after window creation. Requires a `build/icon.png` asset.
-2. **Packaged app (distribution):** add electron-builder (or electron-forge) config with `productName: "Trellis"`, `appId`, and platform-specific icons (`.icns`, `.ico`, `.png`). This brings the dock label to "Trellis" in packaged builds without the runtime override.
+**What's left (distribution — separate follow-up):**
+- Add electron-builder (or electron-forge) config with `productName: "Trellis"`, `appId: "com.semanticpixel.trellis"`, and platform icons (`assets/icon.icns`, `assets/icon.ico`, `assets/png-dark/icon-512.png`). This brings the dock label to "Trellis" in packaged builds without the runtime override, and enables `.dmg` / `.exe` / `.AppImage` builds. Code signing + notarization for macOS is its own chunk of work — tackle when ready to ship external builds.
 
 See original section below for full spec.
 

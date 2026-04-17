@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -137,6 +137,14 @@ ipcMain.handle('dialog:openDirectory', async () => {
 
 // ── Window Creation ────────────────────────────────────────────
 
+// Pick the icon variant that contrasts with the OS theme (dark-themed logo
+// on light UI, light-themed logo on dark UI). Variant is chosen once at
+// launch; macOS dock icons don't live-update with theme changes anyway.
+function iconDir() {
+  const variant = nativeTheme.shouldUseDarkColors ? 'png-light' : 'png-dark';
+  return join(__dirname, '..', 'assets', variant);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -144,6 +152,9 @@ function createWindow() {
     minWidth: 800,
     minHeight: 560,
     title: 'Trellis',
+    // macOS uses app.dock.setIcon below; Windows/Linux take the icon from
+    // the BrowserWindow itself.
+    icon: process.platform !== 'darwin' ? join(iconDir(), 'icon-512.png') : undefined,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: process.platform === 'darwin' ? { x: 14, y: 14 } : undefined,
     webPreferences: {
@@ -268,6 +279,9 @@ function buildApplicationMenu() {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(buildApplicationMenu());
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(join(iconDir(), 'icon-1024.png'));
+  }
   createWindow();
   // Re-register any adapters whose keys were persisted from a previous run.
   // Fire-and-forget: the window loads independently while this runs.

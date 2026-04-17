@@ -66,28 +66,39 @@ export async function runThread(
       let assistantText = '';
       const toolCalls: Array<{ id: string; name: string; input: unknown }> = [];
 
-      const stream = adapter.stream({
-        messages,
-        tools: toolDefs,
-        systemPrompt,
-        model: thread.model,
-        abortSignal,
-      });
+      // Per-iteration abort signal: linked to the session signal but disposed
+      // when the iteration ends, so provider SDK listeners don't accumulate on
+      // the session-level signal across tool-loop iterations.
+      const iterationController = new AbortController();
+      const onSessionAbort = () => iterationController.abort();
+      abortSignal.addEventListener('abort', onSessionAbort, { once: true });
 
-      for await (const event of stream) {
-        if (abortSignal.aborted) break;
-        handleStreamEvent(event, threadId, broadcast, assistantText, toolCalls);
+      try {
+        const stream = adapter.stream({
+          messages,
+          tools: toolDefs,
+          systemPrompt,
+          model: thread.model,
+          abortSignal: iterationController.signal,
+        });
 
-        if (event.type === 'text_delta') {
-          assistantText += event.text;
-        } else if (event.type === 'tool_use_end') {
-          toolCalls.push({ id: event.id, name: event.name, input: event.input });
-        } else if (event.type === 'error') {
-          store.updateThreadStatus(threadId, 'error');
-          broadcast(threadId, 'thread_error', { error: event.error.message });
-          broadcast(threadId, 'thread_status', { status: 'error' });
-          return;
+        for await (const event of stream) {
+          if (abortSignal.aborted) break;
+          handleStreamEvent(event, threadId, broadcast, assistantText, toolCalls);
+
+          if (event.type === 'text_delta') {
+            assistantText += event.text;
+          } else if (event.type === 'tool_use_end') {
+            toolCalls.push({ id: event.id, name: event.name, input: event.input });
+          } else if (event.type === 'error') {
+            store.updateThreadStatus(threadId, 'error');
+            broadcast(threadId, 'thread_error', { error: event.error.message });
+            broadcast(threadId, 'thread_status', { status: 'error' });
+            return;
+          }
         }
+      } finally {
+        abortSignal.removeEventListener('abort', onSessionAbort);
       }
 
       if (abortSignal.aborted) break;

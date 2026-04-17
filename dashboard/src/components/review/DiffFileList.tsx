@@ -2,13 +2,18 @@ import type { DiffFileChange } from '../../hooks/useReview';
 import { MessageSquare } from 'lucide-react';
 import styles from './DiffFileList.module.css';
 
+export interface AnnotationCount {
+  active: number;
+  outdated: number;
+}
+
 interface DiffFileListProps {
   files: DiffFileChange[];
   selectedFile: string | null;
   onSelectFile: (file: string) => void;
   onStage: (file: string) => void;
   onRevert: (file: string) => void;
-  annotationCounts?: Record<string, number>;
+  annotationCounts?: Record<string, AnnotationCount>;
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -26,7 +31,7 @@ export function DiffFileList({ files, selectedFile, onSelectFile, onStage, onRev
   return (
     <div className={styles.list}>
       {files.map((f) => {
-        const count = annotationCounts?.[f.file] ?? 0;
+        const counts = annotationCounts?.[f.file] ?? { active: 0, outdated: 0 };
         return (
           <div
             key={f.file}
@@ -39,10 +44,22 @@ export function DiffFileList({ files, selectedFile, onSelectFile, onStage, onRev
             <span className={styles.fileName} title={f.file}>
               {f.file}
             </span>
-            {count > 0 && (
-              <span className={styles.annotationCount} title={`${count} unresolved comment${count === 1 ? '' : 's'}`}>
+            {counts.active > 0 && (
+              <span
+                className={styles.annotationCount}
+                title={`${counts.active} active comment${counts.active === 1 ? '' : 's'}`}
+              >
                 <MessageSquare size={11} />
-                {count}
+                {counts.active}
+              </span>
+            )}
+            {counts.outdated > 0 && (
+              <span
+                className={`${styles.annotationCount} ${styles.outdatedCount}`}
+                title={`${counts.outdated} outdated comment${counts.outdated === 1 ? '' : 's'}`}
+              >
+                <MessageSquare size={11} />
+                {counts.outdated}
               </span>
             )}
             <span className={styles.stats}>

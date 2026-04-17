@@ -61,6 +61,8 @@ export interface Annotation {
   text: string;
   replacement: string | null;
   resolved: number; // 0 or 1
+  context_snippet: string | null; // captured at create-time; used for staleness check
+  stale?: boolean; // computed at read-time, not persisted
   created_at: string;
 }
 
@@ -209,4 +211,5 @@ export interface CreateAnnotationRequest {
   annotation_type: AnnotationType;
   text: string;
   replacement?: string;
+  context_snippet?: string;
 }

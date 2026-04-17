@@ -17,9 +17,10 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function AnnotationBadge({ annotation, selected, onToggleSelect, onDelete }: AnnotationBadgeProps) {
   const resolved = annotation.resolved === 1;
+  const stale = !resolved && annotation.stale === true;
 
   return (
-    <div className={`${styles.badge} ${resolved ? styles.resolved : ''}`}>
+    <div className={`${styles.badge} ${resolved ? styles.resolved : ''} ${stale ? styles.stale : ''}`}>
       <div className={styles.header}>
         <label className={styles.checkboxLabel}>
           {!resolved && (
@@ -33,6 +34,11 @@ export function AnnotationBadge({ annotation, selected, onToggleSelect, onDelete
           <span className={`${styles.type} ${styles[annotation.annotation_type]}`}>
             {TYPE_LABELS[annotation.annotation_type]}
           </span>
+          {stale && (
+            <span className={styles.outdatedPill} title="Code at this line has changed since the comment was written">
+              outdated
+            </span>
+          )}
         </label>
         {!resolved && (
           <button

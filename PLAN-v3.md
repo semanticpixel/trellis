@@ -64,7 +64,7 @@ Some items share infrastructure or unblock others. Do the upstream item first.
 
 - Always start a session with `@CLAUDE.md @PLAN-v3.md` and a specific item number
 - If an item is large, split into sub-items (N.1, N.2) in-place before starting
-- Mark items done by striking through the title (`### ~~NN. Title~~ DONE`) and adding a one-line recap — mirrors how PLAN-v2.md tracks completion
+- Mark items done by striking through the title (`### ~~NN. Title~~ DONE`) and adding a one-line recap
 - If you discover new work while implementing, add it as a new item rather than scope-creeping the current one
 
 ---

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { ReviewPanel } from './components/review/ReviewPanel';
@@ -69,6 +69,49 @@ export function App() {
     enabled: !!activeThreadId,
     retry: false,
   });
+
+  // Full thread set across all workspaces — drives the orphan-entry pruner
+  // below. Existing `qc.invalidateQueries({ queryKey: ['threads'] })` calls
+  // (e.g. from the sidebar WS handler) refetch this by prefix match.
+  const { data: allThreads } = useQuery<Thread[]>({
+    queryKey: ['threads'],
+    queryFn: async () => {
+      const res = await fetch('/api/threads');
+      if (!res.ok) throw new Error(`Threads fetch failed (${res.status})`);
+      return res.json();
+    },
+  });
+
+  const allKnownThreadIds = useMemo(
+    () => (allThreads ? new Set(allThreads.map((t) => t.id)) : null),
+    [allThreads],
+  );
+
+  // Prune persisted unread/notified entries for threads that no longer exist
+  // (workspace deletion cascades, imported from another machine, manual DB
+  // edits). Skips the initial undefined state so a pending fetch doesn't wipe
+  // live counts.
+  useEffect(() => {
+    if (!allKnownThreadIds) return;
+    setUnreadCounts((prev) => {
+      let changed = false;
+      const next: Record<string, number> = {};
+      for (const [id, count] of Object.entries(prev)) {
+        if (allKnownThreadIds.has(id)) next[id] = count;
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    setNotifiedThreadIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (allKnownThreadIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [allKnownThreadIds, setUnreadCounts]);
 
   // Drop persisted IDs that no longer point at real entities (thread/workspace
   // deleted between sessions, or imported from a different machine).

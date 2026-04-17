@@ -23,8 +23,8 @@ Every item below follows this structure. When adding new items, match the shape 
 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
-- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests).
+- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
 
 ### Dependency graph
 
@@ -344,14 +344,9 @@ Recommended: **Option A** for quick fix. If the flicker is noticeable, move to *
 - https://github.com/suren-atoyan/monaco-react/issues (search "TextModel disposed")
 - React 19 migration notes on effect cleanup ordering
 
-### 22. App branding — replace "Electron" with "Trellis" in menu bar and dock (dev done; packaging pending)
+### ~~22. App branding — replace "Electron" with "Trellis" in menu bar and dock~~ DONE
 
-**Status (dev):** Done. Menu bar label fixed via item 23's custom menu (`app.name = 'Trellis'` before `app.whenReady()`). Dock icon now set in `main.mjs::app.whenReady()` via `app.dock?.setIcon(...)` using the `assets/png-{light,dark}/icon-1024.png` variant that contrasts with `nativeTheme.shouldUseDarkColors`. Windows/Linux take the icon through `BrowserWindow.icon`. Assets (`icon.icns`, `icon.ico`, PNG sets at 16–1024 px, light + dark SVG sources) live under `assets/`.
-
-**What's left (distribution — separate follow-up):**
-- Add electron-builder (or electron-forge) config with `productName: "Trellis"`, `appId: "com.semanticpixel.trellis"`, and platform icons (`assets/icon.icns`, `assets/icon.ico`, `assets/png-dark/icon-512.png`). This brings the dock label to "Trellis" in packaged builds without the runtime override, and enables `.dmg` / `.exe` / `.AppImage` builds. Code signing + notarization for macOS is its own chunk of work — tackle when ready to ship external builds.
-
-See original section below for full spec.
+Dev branding done in commit `d2ee4de` (PR #35) on top of item 23's custom menu. `app.name = 'Trellis'` set before `app.whenReady()`. Dock icon set via `app.dock?.setIcon(...)` using `assets/png-{light,dark}/icon-1024.png` chosen by `nativeTheme.shouldUseDarkColors` so it contrasts with the OS theme. Windows/Linux pick up the icon through `BrowserWindow.icon`. Brand assets committed under `assets/` (`icon.icns`, `icon.ico`, SVG sources, PNG sets 16–1024 px, light + dark variants). Packaged-app distribution work (electron-builder config, code signing, notarization) spun out as **item 39**.
 
 <details>
 <summary>Original spec</summary>
@@ -939,6 +934,50 @@ Target: 50+ tests, under 5 seconds total runtime. Keep it fast so `pnpm test` st
 **Acceptance:** After a session with 10+ `read_file` calls, chat shows one collapsible "10 tool calls" row instead of 10 stacked blocks. Expanding shows each call + result.
 
 **Out of scope:** Nested groups (groups within groups). Custom grouping rules (e.g. "group by tool name"). Keyboard navigation within groups.
+
+### 39. Packaged app distribution (electron-builder)
+
+**What:** Build signed, distributable Trellis binaries for macOS / Windows / Linux so the app can be installed without cloning the repo. Follow-up from item 22 — dev branding is done; this is the production-build piece.
+
+**Why:** Today Trellis only runs via `pnpm run electron:dev`. To share with teammates or ship publicly, it needs packaged installers (`.dmg`, `.exe`, `.AppImage`).
+
+**Implementation:**
+1. **Install electron-builder:** `pnpm add -D electron-builder`
+2. **Add `build` config to `package.json`:**
+   ```json
+   {
+     "build": {
+       "productName": "Trellis",
+       "appId": "com.semanticpixel.trellis",
+       "directories": { "output": "dist-electron" },
+       "files": ["dist/**/*", "dashboard/dist/**/*", "electron/**/*", "assets/**/*"],
+       "mac": {
+         "icon": "assets/icon.icns",
+         "category": "public.app-category.developer-tools",
+         "target": ["dmg", "zip"]
+       },
+       "win": { "icon": "assets/icon.ico", "target": "nsis" },
+       "linux": { "icon": "assets/png-dark/icon-512.png", "target": ["AppImage", "deb"] }
+     }
+   }
+   ```
+3. **Scripts:** add `"dist": "pnpm run build && electron-builder"` and `"dist:mac": "electron-builder --mac"` etc.
+4. **Asar + native modules:** better-sqlite3 and node-pty need to be unpacked from asar. Add `"asarUnpack": ["**/node_modules/better-sqlite3/**", "**/node_modules/node-pty/**"]` to the build config.
+5. **macOS code signing + notarization (separate sub-task):**
+   - Developer ID Application cert in Keychain
+   - Notarization credentials via `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` env vars
+   - electron-builder handles this automatically once env vars are set
+   - Without this, macOS users get a Gatekeeper warning on first launch
+6. **CI (optional):** GitHub Actions workflow that builds + releases on tag push. Can come later; manual local builds work for personal use.
+
+**Files to touch:**
+- `package.json` — `build` config + new scripts
+- `.gitignore` — add `dist-electron/`
+- `electron/main.mjs` — confirm production asset paths work when packaged (ASAR vs unpacked)
+
+**Acceptance:** `pnpm run dist:mac` produces a `.dmg` in `dist-electron/`. Install, launch from Applications — Trellis opens with the correct name, icon, and all features functional. SQLite writes to `~/.trellis/trellis.db`. Terminal spawns pty correctly.
+
+**Out of scope:** Auto-update (`electron-updater`) — separate item when you start shipping releases. Cross-platform signing (Windows code signing is its own rabbit hole).
 
 ---
 

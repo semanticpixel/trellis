@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak), 32 (draft persistence), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests).
@@ -292,24 +292,9 @@ Lines 69-70 in `dashboard/src/ui/tokens.css` are identical. Remove the duplicate
 
 ## Bugs found while dogfooding
 
-### 20. Tool call blocks render as thin "horizontal lines"
+### ~~20. Tool call blocks render as thin "horizontal lines"~~ DONE
 
-**Symptom:** Tool call blocks appear as thin horizontal strips between ASSISTANT text segments — their content is clipped and they read as just lines.
-
-**Cause:** `ToolCallBlock.module.css` uses `overflow: hidden` on `.block` to make `border-radius` clip children. This is interacting badly with the surrounding layout and collapsing the block to just its border.
-
-**Fix:** In `dashboard/src/components/chat/ToolCallBlock.module.css`:
-
-```css
-.block {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-primary);
-  overflow: clip;          /* was: overflow: hidden */
-  margin: var(--space-xs) 0;
-}
-```
-
-`overflow: clip` still clips the border-radius overflow but doesn't establish a new block formatting context or scroll container — which is what's collapsing the block here. Modern, well-supported, and a drop-in swap.
+Fixed in commit `562805a` — swapped `overflow: hidden` to `overflow: clip` on `.block` in `ToolCallBlock.module.css`. The hidden container was collapsing content due to establishing a new block formatting context; `clip` still respects `border-radius` without that side effect. Follow-up item 38 (group consecutive tool calls) still open for a richer collapsed UX.
 
 ### 21. Monaco DiffEditor disposal error when switching files or closing review panel
 
@@ -695,7 +680,12 @@ On plan > "The goal is to point Text's variant map..."
 - Don't rotate mid-session — feels twitchy. Pick once on mount, keep until next app open or full welcome-screen remount.
 - Keep the subtitle static ("Select a thread from the sidebar..." / "Add a workspace...") — only the heading rotates.
 
-### 30. AbortSignal listener leak in session runner
+### ~~30. AbortSignal listener leak in session runner~~ DONE
+
+Fixed in commit `b8d0cb6` (PR #30) via Option A — each tool-loop iteration now wraps `adapter.stream()` in a linked per-iteration `AbortController`. Session-level aborts propagate through a single `once: true` listener per iteration, and listeners are released when the iteration completes. No more `MaxListenersExceededWarning` on long sessions.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** Console warning on long sessions:
 ```
@@ -744,6 +734,8 @@ Recommended: **Option A** — the linked-signal pattern is the idiomatic fix and
 **Acceptance:** Run a session with 15+ tool calls, no `MaxListenersExceededWarning` appears.
 
 **Out of scope:** Reducing `MAX_TOOL_LOOPS` or changing the tool loop structure.
+
+</details>
 
 ## New capabilities
 

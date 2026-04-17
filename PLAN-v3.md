@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars), 21 (Monaco error), 23 (Cmd+` zoom), 24 (stale annotations), 30 (abort leak), 32 (draft persistence), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak), 32 (draft persistence), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests).
@@ -359,7 +359,18 @@ Recommended: **Option A** for quick fix. If the flicker is noticeable, move to *
 - https://github.com/suren-atoyan/monaco-react/issues (search "TextModel disposed")
 - React 19 migration notes on effect cleanup ordering
 
-### 22. App branding — replace "Electron" with "Trellis" in menu bar and dock
+### 22. App branding — replace "Electron" with "Trellis" in menu bar and dock (partial)
+
+**Status:** Menu bar label fixed (done as part of item 23 — custom menu in `main.mjs` uses "Trellis" for the app menu label, and `app.name = 'Trellis'` is set before `app.whenReady()`). Remaining work: dock icon + packaged-app config.
+
+**What's left:**
+1. **Dock icon (dev):** add `app.dock?.setIcon(path.join(__dirname, '../build/icon.png'))` in `main.mjs` after window creation. Requires a `build/icon.png` asset.
+2. **Packaged app (distribution):** add electron-builder (or electron-forge) config with `productName: "Trellis"`, `appId`, and platform-specific icons (`.icns`, `.ico`, `.png`). This brings the dock label to "Trellis" in packaged builds without the runtime override.
+
+See original section below for full spec.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** The macOS menu bar shows "Electron" instead of "Trellis" as the app name. The dock icon is the default Electron logo. First-run impression is of a generic Electron app, not a shipped product.
 
@@ -395,7 +406,14 @@ app.dock?.setIcon(path.join(__dirname, '../build/icon.png'));
 - For dev-only (current state): just `app.name = 'Trellis'` and dock icon override — fixes the window title bar immediately.
 - For distribution: add electron-builder / electron-forge with `productName` + icons. This is a bigger chunk of work (build pipeline, code signing, notarization for macOS) that can stand as its own item when you're ready to ship builds.
 
-### 23. `Cmd+`` terminal shortcut triggers app zoom instead
+</details>
+
+### ~~23. `Cmd+`` terminal shortcut triggers app zoom instead~~ DONE
+
+Implemented via Option A — custom menu built in `electron/main.mjs::buildApplicationMenu()`. View submenu includes `Toggle Terminal` (`CmdOrCtrl+`\``) and `Toggle Review Panel` (`CmdOrCtrl+Shift+D`), both dispatched to the renderer via IPC (`menu:toggle-terminal`, `menu:toggle-review`). `app.name = 'Trellis'` set before `app.whenReady()` so the macOS app menu label is correct. Note: the implementation deliberately **omits the zoom roles** (resetZoom / zoomIn / zoomOut) — if zoom is wanted back, add those role entries to the View submenu.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** Pressing `Cmd+`` to toggle the terminal zooms the app's window content instead. The renderer-level `keydown` handler in `App.tsx` calls `e.preventDefault()`, but something upstream is intercepting first.
 
@@ -447,6 +465,8 @@ Prevents zoom but doesn't fix menu accelerator ordering; may work if the zoom is
 **Option C — Change the shortcut:** Use `Cmd+J` (VS Code's toggle-panel shortcut) or `Cmd+Shift+T`. Easiest but breaks muscle memory for anyone used to `Cmd+\``.
 
 Recommended: **Option A**. Registering a proper menu is the right long-term fix — it also gives you "View → Toggle Terminal" visible in the menu bar, which is discoverable, and as a bonus it cooperates cleanly with item 22 (app branding).
+
+</details>
 
 ### 24. Stale diff annotations after file content changes
 

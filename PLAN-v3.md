@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery), 5 (unread indicator), 20 (tool call bars — DONE), 21 (Monaco error), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution).
@@ -111,9 +111,16 @@ ou left it. Put laptop to sleep for 30 min, wake, same result.
 
 </details>
 
-### 2. Abort running session button
+### ~~2. Abort running session button~~ DONE
+
+Implemented in commit `1be9432` (PR #39). New `POST /api/threads/:id/abort` endpoint calls `sessionManager.abortSession()`; the ChatComposer renders a Stop button in the textarea's bottom-right while `isStreaming`, wired via a new `useAbortSession` mutation. `SessionManager.abortSession` now also broadcasts `thread_stream_end` and transitions the thread to `done` (was `idle`) so the UI clears streaming state immediately rather than waiting for the runner to wind down.
+
+<details>
+<summary>Original spec</summary>
 
 `SessionManager.abortSession()` exists but isn't wired to the UI. Add a Stop button next to the composer when `isStreaming` is true. Clicking it should call `POST /api/threads/:id/abort` which invokes `sessionManager.abortSession(threadId)`. On the next stream event, broadcast `thread_status: 'done'` and clear any streaming state.
+
+</details>
 
 ### 3. Workspace-level context file
 

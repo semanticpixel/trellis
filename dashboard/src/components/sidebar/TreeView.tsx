@@ -7,9 +7,10 @@ interface TreeViewProps {
   activeThreadId: string | null;
   onSelectThread: (threadId: string, workspaceId: string) => void;
   notifiedThreadIds: Set<string>;
+  unreadCounts: Record<string, number>;
 }
 
-export function TreeView({ workspaces, activeThreadId, onSelectThread, notifiedThreadIds }: TreeViewProps) {
+export function TreeView({ workspaces, activeThreadId, onSelectThread, notifiedThreadIds, unreadCounts }: TreeViewProps) {
   return (
     <div className={styles.tree}>
       {workspaces.map((ws) => (
@@ -19,6 +20,7 @@ export function TreeView({ workspaces, activeThreadId, onSelectThread, notifiedT
           activeThreadId={activeThreadId}
           onSelectThread={onSelectThread}
           notifiedThreadIds={notifiedThreadIds}
+          unreadCounts={unreadCounts}
         />
       ))}
     </div>

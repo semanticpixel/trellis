@@ -16,12 +16,13 @@ interface SidebarProps {
   onSelectThread: (threadId: string, workspaceId: string) => void;
   onOpenSettings: () => void;
   notifiedThreadIds: Set<string>;
+  unreadCounts: Record<string, number>;
 }
 
 type ViewMode = 'tree' | 'flat';
 const isViewMode = (v: unknown): v is ViewMode => v === 'tree' || v === 'flat';
 
-export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifiedThreadIds }: SidebarProps) {
+export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifiedThreadIds, unreadCounts }: SidebarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewMode, setViewMode] = usePersistedSetting<ViewMode>('sidebar.mode', 'tree', isViewMode);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,6 +84,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
             ) : (
               searchResults.map((t) => {
                 const ws = workspaces?.find((w) => w.id === t.workspace_id);
+                const unread = unreadCounts[t.id] ?? 0;
                 return (
                   <button
                     key={t.id}
@@ -91,6 +93,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
                   >
                     <span className={styles.searchResultDot} style={{ backgroundColor: ws?.color ?? '#6e7681' }} />
                     <span className={styles.searchResultTitle}>{t.title}</span>
+                    {unread > 0 && <span className={styles.unreadBadge}>{unread}</span>}
                     {notifiedThreadIds.has(t.id) && <span className={styles.notifyDot} />}
                   </button>
                 );
@@ -104,6 +107,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
               activeThreadId={activeThreadId}
               onSelectThread={onSelectThread}
               notifiedThreadIds={notifiedThreadIds}
+              unreadCounts={unreadCounts}
             />
           ) : (
             <FlatView
@@ -111,6 +115,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
               activeThreadId={activeThreadId}
               onSelectThread={onSelectThread}
               notifiedThreadIds={notifiedThreadIds}
+              unreadCounts={unreadCounts}
             />
           )
         ) : (

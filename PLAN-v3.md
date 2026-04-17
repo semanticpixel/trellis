@@ -21,7 +21,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron).
@@ -482,7 +482,12 @@ Recommended: **Option A**. Registering a proper menu is the right long-term fix 
 
 </details>
 
-### 24. Stale diff annotations after file content changes
+### ~~24. Stale diff annotations after file content changes~~ DONE
+
+Implemented in commit `058fc92` (PR #59) via Option A — GitHub-style "outdated" UX. Added a `context_snippet TEXT` column to the `annotations` table (idempotent `ALTER` for existing DBs). The POST `/threads/:threadId/annotations` route captures a 3-line snippet centered on the target line from the current working-tree file. A new shared module `src/review/anchoring.ts` exposes `captureSnippet`, `compareSnippet`, `parseDiffLineRef`, and `findStaleAnnotations` — built deliberately diff/plan-agnostic so item 28 (plan-range annotations) can reuse it. GET `/threads/:threadId/annotations` decorates each annotation with a computed `stale: boolean`. In the UI, stale annotations render at ~0.5 opacity with an "outdated" pill (both in the Monaco viewZone and the `AnnotationBadge` row); `ReviewPanel`'s "All" select-all and Send-feedback default exclude stale annotations — reviewers can still tick stale items individually if they want to resend. `DiffFileList`'s unresolved badge is split into separate "active" and "outdated" counts. Out of scope: re-anchoring by fuzzy match (Option B) and plan-range annotations (item 28).
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** After the LLM edits a file that already has an unresolved review comment, the comment still renders on the old line number even though the code at that line has changed (or the line no longer exists). The annotation becomes misleading — attached to code it was never written about.
 
@@ -505,6 +510,8 @@ This is the same "stale review comment" problem GitHub PR reviews solve by marki
 Recommended: **Option A**. Matches established UX (GitHub, GitLab), is robust, and users understand "outdated" semantics. Requires a one-line migration (`ALTER TABLE annotations ADD COLUMN context_snippet TEXT`), a small change in the create-annotation route to capture the snippet, and a staleness check in `DiffTab` before rendering viewZones.
 
 **Bonus**: Once staleness is tracked, the `DiffFileList` unresolved-comment badge (already implemented) can split into "active" vs "outdated" counts so reviewers see where fresh attention is needed.
+
+</details>
 
 ### 25. Move terminal into review panel as a tab (like Claude's desktop app)
 

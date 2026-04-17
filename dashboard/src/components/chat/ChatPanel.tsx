@@ -112,6 +112,8 @@ export function ChatPanel({
       )}
 
       <ChatComposer
+        key={thread.id}
+        threadId={thread.id}
         onSend={handleSend}
         disabled={isStreaming || sendMessage.isPending}
         isStreaming={isStreaming}

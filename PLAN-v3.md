@@ -24,7 +24,7 @@ Every item below follows this structure. When adding new items, match the shape 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron).
 
 ### Dependency graph
 
@@ -1102,7 +1102,12 @@ useEffect(() => {
 </details>
 
 
-### 42. Fix native module rebuild target mismatch
+### ~~42. Fix native module rebuild target mismatch~~ DONE
+
+Implemented in commit `b546866` (PR #55) — Option A. Renamed the `electron:rebuild` script to `rebuild:native` with body `pnpm rebuild better-sqlite3 node-pty`, which targets system Node's ABI (the same runtime the `tsx` backend subprocess uses). Dropped `@electron/rebuild` as a devDep since nothing in the tree calls it now and the native modules (`better-sqlite3`, `node-pty`) are only loaded by the backend, never by Electron's main process. Updated README and CLAUDE.md to use the new script name and to explain *why* system Node is the right target for this architecture. Option B (move backend in-process with Electron) split out as item 43 for a future session.
+
+<details>
+<summary>Original spec</summary>
 
 **Symptom:** On a fresh clone, running `pnpm run electron:rebuild` followed by `pnpm run dev:server` (or `pnpm run electron:dev`) produces:
 
@@ -1146,6 +1151,44 @@ Recommended: **Option A** now (you need dev unblocked), **Option B** as a separa
 **Acceptance:** Fresh clone → `pnpm install` → `pnpm run rebuild:native` → `pnpm run electron:dev` runs without ABI errors. Same command sequence works for anyone pulling the repo.
 
 **Out of scope:** Option B (separate item if/when pursued). Packaging-time rebuild concerns (item 39 handles that separately via electron-builder's `asarUnpack`).
+
+</details>
+
+### 43. Move backend in-process with Electron main
+
+**Symptom (latent):** `ARCHITECTURE.md` describes the backend as "running in-process with Electron main," but `scripts/electron-dev.mjs` actually spawns it as a separate `tsx` subprocess under system Node. That drift is what produced the rebuild confusion fixed in item 42 — the docs say one thing, the code does another, and any future native-module work has to keep tracking which Node ABI applies to which process. Other latent costs:
+
+- Two processes to supervise during dev (Electron + the tsx subprocess) — backend crashes leave a zombie window with no chat.
+- The renderer talks to the backend over `localhost:3457` HTTP/WS rather than direct IPC, which is fine but unnecessary indirection given they live in the same app.
+- Packaging has to ship and launch a Node runtime alongside Electron, or rely on Electron's bundled Node from a subprocess — easy to get wrong (see item 39).
+
+**Cause:** Historical — the backend was scaffolded as a standalone Express server before Electron was added, and the subprocess approach kept the dev story simple at the time.
+
+**Fix:** Rework `electron/main.mjs` (or a new `electron/main.ts` if we want type-checking) to instantiate the Express app and WebSocket server directly in the main process at startup, instead of spawning `tsx`. Concretely:
+
+1. Convert backend entrypoint into a callable factory: extract the Express + WS bootstrap from `src/index.ts` into `src/server.ts` exporting `startServer({ port, dbPath }): Promise<{ stop(): Promise<void> }>`. Keep `src/index.ts` as a thin CLI shim that calls the factory (so `pnpm run dev:server` still works for backend-only dev).
+2. In `electron/main.mjs`, `await startServer(...)` before `createWindow()`. Pass the resolved port into `loadURL`.
+3. Update `scripts/electron-dev.mjs` to stop spawning the tsx subprocess. Vite still runs separately for the dashboard HMR; Electron just imports the backend.
+4. Confirm `better-sqlite3` and `node-pty` load under Electron's ABI — at this point we *do* want `@electron/rebuild` back, since native modules now live in Electron's process. Re-add it as a devDep and restore (or rename) the script.
+5. Update `ARCHITECTURE.md` to drop the historical-context note about the subprocess; it now matches reality.
+6. Update `README.md` and `CLAUDE.md`: `pnpm run electron:dev` is now the single entrypoint and there's no separate backend log stream.
+
+**Tradeoffs:**
+- Pro: matches stated architecture, eliminates a whole class of ABI confusion, simpler dev process tree, packaging story collapses to "just ship Electron."
+- Pro: renderer ↔ backend can optionally move to direct IPC later (faster, no port conflicts), though HTTP/WS is fine to keep for now.
+- Con: backend errors crash the whole app instead of just the subprocess. Add a top-level `process.on('uncaughtException')` in main to log + show an error dialog rather than silently dying.
+- Con: hot-reload of backend code requires restarting Electron (the tsx subprocess gave us free `tsx watch`). Acceptable trade — backend changes are less frequent than dashboard changes, and dashboard HMR is unaffected.
+
+**Files to touch:**
+- `src/index.ts` → split into `src/server.ts` (factory) + `src/index.ts` (CLI shim)
+- `electron/main.mjs` — import and start the server before window creation; add uncaught-exception handler
+- `scripts/electron-dev.mjs` — drop the tsx subprocess
+- `package.json` — restore `@electron/rebuild` devDep, add or rename `electron:rebuild` script targeting Electron's ABI
+- `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` — reflect new process model
+
+**Acceptance:** `pnpm run electron:dev` starts a single process (Electron) with the backend running inside main; only Vite is a sibling. `better-sqlite3` and `node-pty` work without ABI errors after `pnpm install` + `pnpm run electron:rebuild`. ARCHITECTURE.md's process-model description matches the code.
+
+**Out of scope:** Migrating renderer transport from HTTP/WS to Electron IPC (separate optimization item if/when latency or port conflicts become a problem). Packaging changes (item 39) — but this work makes that item simpler since there's no separate Node runtime to ship.
 
 ---
 

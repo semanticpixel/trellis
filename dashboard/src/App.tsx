@@ -134,11 +134,15 @@ export function App() {
     }
   }, [workspaces, activeWorkspaceId, setActiveWorkspaceId]);
 
-  const activeWorkspace = workspaces?.find((w) => w.id === activeWorkspaceId);
-  const { data: repos } = useRepos(activeWorkspaceId ?? undefined);
+  // Workspace of the chat in focus — drives the color accent, repo lookup,
+  // and terminal cwd. Falls back to activeWorkspaceId (what Cmd+1-9 and the
+  // sidebar mutate) only when no thread is active, so the welcome state
+  // still reflects the user's workspace selection.
+  const focusWorkspaceId = activeThread?.workspace_id ?? activeWorkspaceId;
+  const activeWorkspace = workspaces?.find((w) => w.id === focusWorkspaceId);
+  const { data: repos } = useRepos(focusWorkspaceId ?? undefined);
   const activeRepo = repos?.find((r) => r.id === activeThread?.repo_id);
 
-  // Terminal cwd: prefer active repo path, fall back to workspace path
   const terminalCwd = activeRepo?.path ?? activeWorkspace?.path ?? '';
 
   const handleSelectThread = useCallback((threadId: string, workspaceId: string) => {
@@ -339,7 +343,7 @@ export function App() {
         terminalOpen={terminalOpen}
         onToggleTerminal={() => setTerminalOpen(!terminalOpen)}
         onCloseTerminal={() => setTerminalOpen(false)}
-        workspaceId={activeWorkspaceId}
+        workspaceId={focusWorkspaceId}
         terminalCwd={terminalCwd}
         hasWorkspaces={!!workspaces && workspaces.length > 0}
         workspaces={workspaces ?? []}

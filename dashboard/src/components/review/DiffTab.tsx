@@ -339,7 +339,11 @@ function DiffBody({
     );
   }
 
-  return <div className={styles.diffBody}>{segments}</div>;
+  return (
+    <div className={styles.diffBody}>
+      <div className={styles.diffBodyInner}>{segments}</div>
+    </div>
+  );
 }
 
 // ── Hunk ──────────────────────────────────────────────────────────

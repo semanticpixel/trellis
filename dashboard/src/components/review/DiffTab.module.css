@@ -91,9 +91,13 @@
   background: var(--bg-primary);
 }
 
+.diffBodyInner {
+  min-width: max-content;
+}
+
 .row {
   display: grid;
-  grid-template-columns: 80px 4px 16px 1fr;
+  grid-template-columns: 80px 4px 16px auto;
   align-items: stretch;
   position: relative;
   white-space: pre;
@@ -186,7 +190,6 @@
 .code {
   padding: 0 var(--space-sm);
   white-space: pre;
-  overflow-x: auto;
   color: var(--text-primary);
   font-family: var(--font-mono);
 }

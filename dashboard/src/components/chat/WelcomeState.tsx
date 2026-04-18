@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Workspace } from '@shared/types';
+import { DEFAULT_WORKSPACE_COLOR } from '@shared/constants';
 import { AddWorkspaceModal } from '../sidebar/AddWorkspaceModal';
 import { FolderPlus, Search, Bug, TestTube } from 'lucide-react';
 import styles from './WelcomeState.module.css';
@@ -127,7 +128,7 @@ export function WelcomeState({
                 className={styles.pickerItem}
                 onClick={() => handlePickWorkspace(ws.id)}
               >
-                <span className={styles.pickerDot} style={{ backgroundColor: ws.color ?? '#6e7681' }} />
+                <span className={styles.pickerDot} style={{ backgroundColor: ws.color ?? DEFAULT_WORKSPACE_COLOR }} />
                 <span className={styles.pickerName}>{ws.name}</span>
               </button>
             ))}

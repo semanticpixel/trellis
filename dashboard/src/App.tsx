@@ -11,6 +11,7 @@ import { usePanelWidths } from './hooks/usePanelWidths';
 import { usePersistedSetting } from './hooks/usePersistedSetting';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Thread, WSMessage } from '@shared/types';
+import { DEFAULT_WORKSPACE_COLOR } from '@shared/constants';
 import styles from './App.module.css';
 
 const isStringOrNull = (v: unknown): v is string | null =>
@@ -306,7 +307,7 @@ export function App() {
 
       <ChatPanel
         thread={activeThread ?? null}
-        workspaceColor={activeWorkspace?.color ?? '#6e7681'}
+        workspaceColor={activeWorkspace?.color ?? DEFAULT_WORKSPACE_COLOR}
         onToggleReview={() => setReviewPanelOpen(!reviewPanelOpen)}
         reviewOpen={reviewPanelOpen}
         terminalOpen={terminalOpen}

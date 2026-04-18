@@ -2,7 +2,7 @@
 
 ## What is Trellis?
 
-Multi-workspace LLM desktop app (Electron + React 19 + Express + SQLite) that multiplexes AI coding sessions across workspaces with built-in code review. See ARCHITECTURE.md for data flow and PLAN-v3.md for implementation phases.
+Multi-workspace LLM desktop app (Electron + React 19 + Express + SQLite) that multiplexes AI coding sessions across workspaces with built-in code review. See ARCHITECTURE.md for data flow, PLAN-v3.md for implementation phases / feature work, and UX_POLISH.md for visual and interaction papercuts (lower-bar observations logged during dogfooding).
 
 ## Project Structure
 

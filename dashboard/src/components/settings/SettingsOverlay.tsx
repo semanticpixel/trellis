@@ -11,17 +11,18 @@ import {
   useSetSetting,
 } from '../../hooks/useWorkspaces';
 import { ColorPicker } from '../sidebar/ColorPicker';
-import { X, Trash2, Pencil, Plus, Check } from 'lucide-react';
+import { X, Trash2, Pencil, Plus, Check, Keyboard } from 'lucide-react';
 import type { Provider, ProviderType } from '@shared/types';
 import styles from './SettingsOverlay.module.css';
 
 interface SettingsOverlayProps {
   onClose: () => void;
+  onOpenShortcutReference: () => void;
 }
 
 type SettingsTab = 'providers' | 'workspaces' | 'appearance';
 
-export function SettingsOverlay({ onClose }: SettingsOverlayProps) {
+export function SettingsOverlay({ onClose, onOpenShortcutReference }: SettingsOverlayProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers');
 
   // Close on Escape
@@ -71,6 +72,12 @@ export function SettingsOverlay({ onClose }: SettingsOverlayProps) {
           {activeTab === 'providers' && <ProvidersTab />}
           {activeTab === 'workspaces' && <WorkspacesTab />}
           {activeTab === 'appearance' && <AppearanceTab />}
+        </div>
+
+        <div className={styles.footer}>
+          <button className={styles.footerBtn} onClick={onOpenShortcutReference}>
+            <Keyboard size={14} /> Keyboard shortcuts
+          </button>
         </div>
       </div>
     </div>

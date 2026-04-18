@@ -310,6 +310,31 @@
   background: var(--accent-subtle);
 }
 
+.footer {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-sm) var(--space-lg);
+  border-top: 1px solid var(--border-primary);
+}
+
+.footerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.footerBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .keyStatus {
   display: flex;
   align-items: center;

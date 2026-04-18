@@ -3,6 +3,7 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { ReviewPanel } from './components/review/ReviewPanel';
 import { SettingsOverlay } from './components/settings/SettingsOverlay';
+import { ShortcutReference } from './components/settings/ShortcutReference';
 import { Resizer } from './components/layout/Resizer';
 import { ErrorBoundary } from './components/layout/ErrorBoundary';
 import { useWorkspaces, useRepos, useCreateThread, useSendMessage } from './hooks/useWorkspaces';
@@ -39,6 +40,7 @@ export function App() {
   );
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutReferenceOpen, setShortcutReferenceOpen] = useState(false);
   const [notifiedThreadIds, setNotifiedThreadIds] = useState<Set<string>>(new Set());
   const [unreadCounts, setUnreadCounts] = usePersistedSetting<Record<string, number>>(
     'session.unreadCounts',
@@ -269,6 +271,13 @@ export function App() {
         return;
       }
 
+      // Cmd+/ — show keyboard shortcut reference
+      if (meta && e.key === '/' && !e.shiftKey) {
+        e.preventDefault();
+        setShortcutReferenceOpen(true);
+        return;
+      }
+
       // Cmd+1 through Cmd+9 — switch workspace (no-op if index out of range)
       if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
@@ -354,7 +363,17 @@ export function App() {
       )}
 
       {settingsOpen && (
-        <SettingsOverlay onClose={() => setSettingsOpen(false)} />
+        <SettingsOverlay
+          onClose={() => setSettingsOpen(false)}
+          onOpenShortcutReference={() => {
+            setSettingsOpen(false);
+            setShortcutReferenceOpen(true);
+          }}
+        />
+      )}
+
+      {shortcutReferenceOpen && (
+        <ShortcutReference onClose={() => setShortcutReferenceOpen(false)} />
       )}
     </div>
     </ErrorBoundary>

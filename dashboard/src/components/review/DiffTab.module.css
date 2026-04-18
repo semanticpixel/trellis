@@ -194,6 +194,17 @@
   font-family: var(--font-mono);
 }
 
+.binaryPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-xl);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
 /* ── Gap toggle ────────────────────────────────────────────── */
 
 .gapToggle {

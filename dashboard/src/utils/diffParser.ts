@@ -28,7 +28,7 @@ const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 export function parseUnifiedDiff(patch: string): ParsedDiffFile[] {
   if (!patch.trim()) return [];
 
-  const lines = patch.split('\n');
+  const lines = patch.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
   const files: ParsedDiffFile[] = [];
   let current: ParsedDiffFile | null = null;
   let currentHunk: DiffHunk | null = null;

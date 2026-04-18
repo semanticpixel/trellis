@@ -9,6 +9,7 @@ interface ChatComposerProps {
   disabled: boolean;
   isStreaming?: boolean;
   onAbort?: () => void;
+  autoFocusToken?: number;
 }
 
 function readDraft(threadId: string): string {
@@ -22,7 +23,7 @@ function readDraft(threadId: string): string {
   }
 }
 
-export function ChatComposer({ threadId, onSend, disabled, isStreaming = false, onAbort }: ChatComposerProps) {
+export function ChatComposer({ threadId, onSend, disabled, isStreaming = false, onAbort, autoFocusToken }: ChatComposerProps) {
   const [value, setValue] = useState(() => readDraft(threadId));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -33,6 +34,18 @@ export function ChatComposer({ threadId, onSend, disabled, isStreaming = false, 
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
   }, []);
+
+  // Token starts at 0 on initial app load; only user-initiated thread selects bump it.
+  // Skip stealing focus when the user is already typing in another input (modal, search, etc).
+  useEffect(() => {
+    if (!autoFocusToken) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) {
+      const tag = active.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) return;
+    }
+    textareaRef.current?.focus();
+  }, [autoFocusToken]);
 
   // Debounced draft persistence. Empty value clears the entry.
   useEffect(() => {

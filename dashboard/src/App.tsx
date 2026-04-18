@@ -46,6 +46,7 @@ export function App() {
     isUnreadCounts,
   );
   const [autoFocusFile, setAutoFocusFile] = useState<{ path: string; token: number } | null>(null);
+  const [composerFocusToken, setComposerFocusToken] = useState(0);
   const { data: workspaces } = useWorkspaces();
   const createThread = useCreateThread();
   const sendMessage = useSendMessage();
@@ -140,6 +141,7 @@ export function App() {
   const handleSelectThread = useCallback((threadId: string, workspaceId: string) => {
     setActiveThreadId(threadId);
     setActiveWorkspaceId(workspaceId);
+    setComposerFocusToken((n) => n + 1);
     // Clear notification for this thread
     setNotifiedThreadIds((prev) => {
       if (!prev.has(threadId)) return prev;
@@ -318,6 +320,7 @@ export function App() {
         hasWorkspaces={!!workspaces && workspaces.length > 0}
         workspaces={workspaces ?? []}
         onStartWithPrompt={handleStartWithPrompt}
+        composerFocusToken={composerFocusToken}
       />
 
       {reviewPanelOpen && (

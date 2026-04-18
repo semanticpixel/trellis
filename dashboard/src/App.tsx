@@ -271,8 +271,10 @@ export function App() {
         return;
       }
 
-      // Cmd+/ — show keyboard shortcut reference
-      if (meta && e.key === '/' && !e.shiftKey) {
+      // Cmd+/ or Cmd+? — show keyboard shortcut reference. Cmd+? is the
+      // macOS-native help accelerator; Cmd+/ keeps working on keyboard
+      // layouts where Shift+/ doesn't produce '?'.
+      if (meta && ((e.key === '/' && !e.shiftKey) || (e.shiftKey && e.key === '?'))) {
         e.preventDefault();
         setShortcutReferenceOpen(true);
         return;

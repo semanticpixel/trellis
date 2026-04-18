@@ -310,9 +310,9 @@ Currently only handles first 4 workspaces. Options:
 - Extend to Cmd+1 through Cmd+9
 - Or switch to "most recently active" instead of index-based
 
-### 18. Fix duplicate `--shadow-subtle` in tokens.css
+### ~~18. Fix duplicate `--shadow-subtle` in tokens.css~~ DONE
 
-Lines 69-70 in `dashboard/src/ui/tokens.css` are identical. Remove the duplicate.
+Removed the duplicate `--shadow-subtle` declaration from the `:root` (light) block in `dashboard/src/ui/tokens.css`. Other theme blocks already had a single declaration.
 
 ### 19. Hardcoded workspace color fallback
 

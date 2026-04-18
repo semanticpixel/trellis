@@ -18,12 +18,13 @@ interface SidebarProps {
   onOpenSettings: () => void;
   notifiedThreadIds: Set<string>;
   unreadCounts: Record<string, number>;
+  searchInputRef?: React.Ref<HTMLInputElement>;
 }
 
 type ViewMode = 'tree' | 'flat';
 const isViewMode = (v: unknown): v is ViewMode => v === 'tree' || v === 'flat';
 
-export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifiedThreadIds, unreadCounts }: SidebarProps) {
+export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifiedThreadIds, unreadCounts, searchInputRef }: SidebarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewMode, setViewMode] = usePersistedSetting<ViewMode>('sidebar.mode', 'tree', isViewMode);
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,6 +71,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
       <div className={styles.searchBar}>
         <Search size={13} className={styles.searchIcon} />
         <input
+          ref={searchInputRef}
           className={styles.searchInput}
           placeholder="Search threads..."
           value={searchQuery}

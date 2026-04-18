@@ -47,6 +47,7 @@ export function App() {
   );
   const [autoFocusFile, setAutoFocusFile] = useState<{ path: string; token: number } | null>(null);
   const [composerFocusToken, setComposerFocusToken] = useState(0);
+  const sidebarSearchRef = useRef<HTMLInputElement>(null);
   const { data: workspaces } = useWorkspaces();
   const createThread = useCreateThread();
   const sendMessage = useSendMessage();
@@ -257,6 +258,17 @@ export function App() {
         return;
       }
 
+      // Cmd+K — focus sidebar search
+      if (meta && e.key === 'k' && !e.shiftKey) {
+        e.preventDefault();
+        const input = sidebarSearchRef.current;
+        if (input) {
+          input.scrollIntoView({ block: 'nearest' });
+          input.focus();
+        }
+        return;
+      }
+
       // Cmd+1 through Cmd+4 — switch workspace
       if (meta && !e.shiftKey && e.key >= '1' && e.key <= '4') {
         e.preventDefault();
@@ -299,6 +311,7 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         notifiedThreadIds={notifiedThreadIds}
         unreadCounts={unreadCounts}
+        searchInputRef={sidebarSearchRef}
       />
 
       <Resizer

@@ -38,7 +38,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
     if (msg.type === 'repo_update') {
       qc.invalidateQueries({ queryKey: ['repos'] });
     }
-    if (msg.type === 'thread_status' || msg.type === 'thread_error') {
+    if (msg.type === 'thread_status' || msg.type === 'thread_error' || msg.type === 'thread_update') {
       qc.invalidateQueries({ queryKey: ['threads'] });
       qc.invalidateQueries({ queryKey: ['thread', msg.threadId] });
     }

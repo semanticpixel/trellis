@@ -269,8 +269,8 @@ export function App() {
         return;
       }
 
-      // Cmd+1 through Cmd+4 — switch workspace
-      if (meta && !e.shiftKey && e.key >= '1' && e.key <= '4') {
+      // Cmd+1 through Cmd+9 — switch workspace (no-op if index out of range)
+      if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const idx = parseInt(e.key, 10) - 1;
         if (workspaces && workspaces[idx]) {

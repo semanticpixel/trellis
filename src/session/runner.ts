@@ -4,6 +4,7 @@ import type { LLMMessage, StreamEvent, WSEventType } from '../shared/types.js';
 import { getTool, getToolDefinitions } from '../tools/registry.js';
 import { MAX_TOOL_LOOPS } from '../shared/constants.js';
 import { compactMessages, estimateTokens } from './history.js';
+import { generateTitleForThread } from './titler.js';
 
 export interface RunnerContext {
   store: Store;
@@ -176,6 +177,16 @@ export async function runThread(
     store.updateThreadStatus(threadId, 'done');
     broadcast(threadId, 'thread_stream_end', {});
     broadcast(threadId, 'thread_status', { status: 'done' });
+
+    if (!abortSignal.aborted && loopCount < MAX_TOOL_LOOPS) {
+      const finalMessages = store.listMessages(threadId);
+      const userMessageCount = finalMessages.filter((m) => m.role === 'user').length;
+      if (userMessageCount === 1) {
+        generateTitleForThread(threadId, adapter, { store, broadcast }).catch((err) => {
+          console.error(`[trellis] Title generation failed for ${threadId}:`, err);
+        });
+      }
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     store.updateThreadStatus(threadId, 'error');

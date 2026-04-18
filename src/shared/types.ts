@@ -97,6 +97,7 @@ export type WSEventType =
   | 'thread_tool_start'
   | 'thread_tool_end'
   | 'thread_status'
+  | 'thread_update'
   | 'thread_error'
   | 'repo_update'
   | 'workspace_update'

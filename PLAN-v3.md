@@ -23,7 +23,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
-- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
+- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color — DONE), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish), 47 (virtualize file list — candidate for SPECULATIVE if unused).
 
 ### Dependency graph
@@ -277,9 +277,9 @@ Standard chat features that are noticeable by their absence:
 - Regenerate last assistant response (re-runs with same user message)
 - Fork thread at message — creates a new thread that's a copy up to that point
 
-### 12. LLM-generated titles
+### ~~12. LLM-generated titles~~ DONE
 
-Auto-title currently is the first 60 chars of the first user message. After the first exchange completes successfully, call the LLM with a short prompt to generate a better 3-5 word title. Update the thread title via WS broadcast.
+After the first user + assistant exchange completes, `src/session/runner.ts` fires `generateTitleForThread` (fire-and-forget) using the thread's own adapter and model. The titler (`src/session/titler.ts`) streams with no tools, a tight system prompt, and `maxTokens: 32`, then strips quotes/trailing punctuation and calls `store.updateThreadTitle` + broadcasts a new `thread_update` WS event. The Sidebar invalidates `['threads']` and `['thread', id]` on `thread_update`, which also refreshes the ChatPanel header. The 60-char auto-title set in `routes.ts` on the first user message remains the initial state and the silent fallback when the LLM call fails or is aborted. Skipped on abort and max-tool-loop exits; only triggered when the thread has exactly one user message.
 
 ### 13. Cost / token display
 

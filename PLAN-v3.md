@@ -63,9 +63,11 @@ Some items share infrastructure or unblock others. Do the upstream item first.
 ### Working across sessions
 
 - Always start a session with `@CLAUDE.md @PLAN-v3.md` and a specific item number
+- For polish-only sessions (batching visual/interaction papercuts), reference `@UX_POLISH.md` instead — lower-bar observations live there, not in this file
 - If an item is large, split into sub-items (N.1, N.2) in-place before starting
 - Mark items done by striking through the title (`### ~~NN. Title~~ DONE`) and adding a one-line recap
 - If you discover new work while implementing, add it as a new item rather than scope-creeping the current one
+- If you spot a visual papercut mid-session (e.g. "that button's misaligned"), log it in UX_POLISH.md instead of the current PR so the batch stays clean
 
 ---
 

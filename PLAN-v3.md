@@ -308,6 +308,8 @@ Up/Down to move between threads, Enter to select. Standard tree navigation.
 
 `App.tsx` now matches `'1'`–`'9'` instead of `'1'`–`'4'` in the global keydown handler. If fewer workspaces exist than the pressed digit, the index lookup returns `undefined` and the handler no-ops (after `preventDefault`).
 
+**Follow-up fix (PR #73):** Cmd+1-9 originally fed `activeWorkspaceId` into both the terminal cwd / session key and the ChatPanel color accent, so switching the selected workspace while a thread was open jumped the terminal and swapped the accent even though the visible chat stayed on the original thread. `App.tsx` now derives `focusWorkspaceId = activeThread?.workspace_id ?? activeWorkspaceId` and routes the terminal (`workspaceId` + `cwd`) and color accent through it. `activeWorkspaceId` remains the Cmd+N target and welcome-state selection, so Cmd+1-9 keeps its "pre-select workspace for next new thread" role.
+
 ### ~~18. Fix duplicate `--shadow-subtle` in tokens.css~~ DONE
 
 Removed the duplicate `--shadow-subtle` declaration from the `:root` (light) block in `dashboard/src/ui/tokens.css`. Other theme blocks already had a single declaration.
@@ -937,7 +939,7 @@ Implemented in commit `b2917e0` (PR #57). Added `ErrorBoundary` class component 
 
 ### ~~36. Keyboard shortcut reference (Cmd+/ or Cmd+?)~~ DONE
 
-Recap: `ShortcutReference` modal grouped by Navigation / Threads / Review / Terminal / General, bound to Cmd+/, closes on Esc or backdrop click, also reachable from a new Settings footer button. Keycaps render through a small `<Kbd>` component; modifier glyphs (⌘ / ⇧) are used on macOS and `Ctrl` / `Shift` elsewhere.
+Recap: `ShortcutReference` modal grouped by Navigation / Threads / Review / Terminal / General, bound to Cmd+/ with Cmd+? (Cmd+Shift+/) added as an alias for the macOS-native help convention. Closes on Esc or backdrop click, also reachable from a new Settings footer button. Keycaps render through a small `<Kbd>` component; modifier glyphs (⌘ / ⇧) are used on macOS and `Ctrl` / `Shift` elsewhere.
 
 **What:** A modal showing all Trellis keyboard shortcuts, grouped by section.
 

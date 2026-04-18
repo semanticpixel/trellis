@@ -24,7 +24,7 @@ Every item below follows this structure. When adding new items, match the shape 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars), 45 (theme-aware Shiki), 46 (binary + CRLF polish), 47 (virtualize file list — candidate for SPECULATIVE if unused).
 
 ### Dependency graph
 
@@ -1228,6 +1228,91 @@ Recommended: **Option A** now (you need dev unblocked), **Option B** as a separa
 **Acceptance:** `pnpm run electron:dev` starts a single process (Electron) with the backend running inside main; only Vite is a sibling. `better-sqlite3` and `node-pty` work without ABI errors after `pnpm install` + `pnpm run electron:rebuild`. ARCHITECTURE.md's process-model description matches the code.
 
 **Out of scope:** Migrating renderer transport from HTTP/WS to Electron IPC (separate optimization item if/when latency or port conflicts become a problem). Packaging changes (item 39) — but this work makes that item simpler since there's no separate Node runtime to ship.
+
+## Item 27 follow-ups (diff renderer polish)
+
+### 44. Per-row horizontal scrollbars on diff lines
+
+**Symptom:** Each long line in the diff renders its own horizontal scrollbar (see screenshot — multiple thin gray scrollbars appearing under long lines of code). Looks messy and creates visual noise across what should be a clean diff.
+
+**Cause:** `DiffTab.module.css` sets `overflow-x: auto` on `.code` (the individual line's code cell). Every row that's wider than its container renders a scrollbar of its own.
+
+**Fix options:**
+
+**Option A — One container scrollbar (recommended):** Move `overflow-x: auto` from `.code` to the parent container (the hunk body or diff wrapper). Individual rows become `overflow: visible`, and the whole diff scrolls horizontally as a unit. Tradeoff: when scrolled right, all rows shift together — which is what you want for comparing lines.
+
+**Option B — Soft-wrap long lines:** Replace `white-space: pre` with `white-space: pre-wrap` and `word-break: break-all` on `.code`. Long lines wrap to the next visual row. Tradeoff: line numbering gets visually noisy (one logical line spans multiple rendered rows); diff alignment becomes harder to follow.
+
+**Option C — Hide scrollbars but keep scrollability:** Add `scrollbar-width: none` + `::-webkit-scrollbar { display: none }` on `.code`. Users can still scroll via trackpad gesture but no visible bar. Tradeoff: discoverability — users won't know lines are scrollable unless they try.
+
+Recommended: **Option A**. Matches how GitHub, VS Code, and Codex render diffs — single bottom scrollbar for the entire diff pane.
+
+**Files to touch:**
+- `dashboard/src/components/review/DiffTab.module.css` — move `overflow-x: auto` from `.code` to the diff body container; ensure the grid layout still aligns rows
+
+**Acceptance:** Open a diff with long lines. Only one horizontal scrollbar appears at the bottom of the diff pane. Scrolling it moves all rows in sync.
+
+**Out of scope:** Redesigning the gutter/sign/code grid layout.
+
+### 45. Theme-aware Shiki highlighter
+
+**Symptom:** Shiki theme is hardcoded to `github-dark` in `dashboard/src/utils/highlighter.ts`. Even when the app is in light mode (via OS preference or the explicit theme toggle from item 22), code blocks and the diff view stay dark.
+
+**Cause:** The highlighter was introduced in item 27 with a single theme constant. No coupling to the app's theme state.
+
+**Fix:**
+1. Load **both** `github-light` and `github-dark` themes in the highlighter. Shiki supports multiple themes loaded into one instance.
+2. In `highlightCode()` (and wherever it's called), accept a theme parameter: `'light' | 'dark'`.
+3. Read current theme from the existing theme state (look at where `data-theme` is set on `:root` for the CSS token swap — probably in `useTheme.ts` or similar).
+4. Pass the resolved theme into `highlightCode()`. When the theme changes, re-highlight visible code (easy: add theme to the `useMemo` / `useEffect` dep array in `DiffTab` and `ShikiCodeBlock`).
+5. Loading both themes adds ~100KB. Lazy-load them in parallel on first use.
+
+**Files to touch:**
+- `dashboard/src/utils/highlighter.ts` — support both themes
+- `dashboard/src/components/review/DiffTab.tsx` — pass theme, add to effect deps
+- `dashboard/src/components/chat/ChatMessage.tsx` — same for `ShikiCodeBlock`
+- Possibly `dashboard/src/hooks/useTheme.ts` if a hook exists for theme state
+
+**Acceptance:** Toggle theme in Settings → diff view and chat code blocks switch color schemes without reload. OS-level prefers-color-scheme changes also reflect.
+
+**Out of scope:** Custom theme support (e.g. loading user-provided TextMate themes). Per-language theme overrides.
+
+### 46. Small diff renderer polish (binary files + CRLF)
+
+Two tiny gaps from the item 27 audit, bundled together:
+
+**A. Binary file placeholder.** When `ParsedDiffFile.isBinary === true`, the diff body currently renders as empty. Show a placeholder row instead: `Binary file — diff not displayed`. Muted color, centered, with a small icon.
+
+**B. CRLF normalization.** `diffParser.ts` splits on `\n` only, leaving trailing `\r` on CRLF-originated lines. Shows as phantom trailing whitespace. Normalize at parse time:
+```ts
+const lines = patch.split('\n').map((l) => l.endsWith('\r') ? l.slice(0, -1) : l);
+```
+
+**Files to touch:**
+- `dashboard/src/components/review/DiffTab.tsx` — binary placeholder rendering
+- `dashboard/src/utils/diffParser.ts` — CRLF strip at split time
+
+**Acceptance:** Open a diff with a binary file (e.g. add an image) — see the placeholder. Open a diff with CRLF-origin files — no trailing whitespace artifacts.
+
+**Out of scope:** Rendering image diffs visually (before/after). Encoding detection beyond CRLF.
+
+### 47. Virtualize DiffFileList for large change sets
+
+**Symptom:** A diff with 100+ changed files renders all file entries as DOM nodes in the file list. Scrolling gets janky and initial render takes a beat on older hardware or when many annotations are present.
+
+**Cause:** `DiffFileList` renders the full list. No virtualization.
+
+**Fix:** Introduce a small virtualization library (`react-virtuoso` or `@tanstack/react-virtual`) and render only visible rows + a small overscan. File list becomes fixed-height-per-row (already is) with lazy hydration.
+
+**Trigger:** Only bother if you actually start hitting diffs with 50+ files during dogfooding. For typical LLM sessions that touch 1-10 files, this is premature. **Move to SPECULATIVE_FEATURES.md if it doesn't bite in the next month.**
+
+**Files to touch:**
+- `dashboard/src/components/review/DiffFileList.tsx` — swap list rendering for virtual list
+- `dashboard/package.json` — add virtualization lib
+
+**Acceptance:** A 500-file diff renders the initial view in <100ms and scrolls at 60fps.
+
+**Out of scope:** Virtualizing the diff body (individual hunks) — that's a separate, larger concern.
 
 ---
 

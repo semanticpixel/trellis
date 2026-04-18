@@ -1,7 +1,8 @@
+import { DEFAULT_WORKSPACE_COLOR } from '@shared/constants';
 import styles from './ColorPicker.module.css';
 
 const COLORS = [
-  '#6e7681', // gray (default)
+  DEFAULT_WORKSPACE_COLOR, // gray (default)
   '#cf222e', // red
   '#e16f24', // orange
   '#bf8700', // yellow

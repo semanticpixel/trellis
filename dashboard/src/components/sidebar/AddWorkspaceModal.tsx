@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useCreateWorkspace } from '../../hooks/useWorkspaces';
 import { ColorPicker } from './ColorPicker';
 import { X } from 'lucide-react';
+import { DEFAULT_WORKSPACE_COLOR } from '@shared/constants';
 import styles from './AddWorkspaceModal.module.css';
 
 interface AddWorkspaceModalProps {
@@ -11,7 +12,7 @@ interface AddWorkspaceModalProps {
 export function AddWorkspaceModal({ onClose }: AddWorkspaceModalProps) {
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
-  const [color, setColor] = useState('#6e7681');
+  const [color, setColor] = useState(DEFAULT_WORKSPACE_COLOR);
   const [error, setError] = useState('');
   const createWorkspace = useCreateWorkspace();
   const dirInputRef = useRef<HTMLInputElement>(null);

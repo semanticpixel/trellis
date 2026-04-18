@@ -9,6 +9,7 @@ import { AddWorkspaceModal } from './AddWorkspaceModal';
 import { MissingNotice } from './MissingNotice';
 import { Settings, Search, List, GitBranch } from 'lucide-react';
 import type { WSMessage } from '@shared/types';
+import { DEFAULT_WORKSPACE_COLOR } from '@shared/constants';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -91,7 +92,7 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
                     className={`${styles.searchResultRow} ${t.id === activeThreadId ? styles.searchResultActive : ''}`}
                     onClick={() => onSelectThread(t.id, t.workspace_id)}
                   >
-                    <span className={styles.searchResultDot} style={{ backgroundColor: ws?.color ?? '#6e7681' }} />
+                    <span className={styles.searchResultDot} style={{ backgroundColor: ws?.color ?? DEFAULT_WORKSPACE_COLOR }} />
                     <span className={styles.searchResultTitle}>{t.title}</span>
                     {unread > 0 && <span className={styles.unreadBadge}>{unread}</span>}
                     {notifiedThreadIds.has(t.id) && <span className={styles.notifyDot} />}

@@ -1,7 +1,10 @@
 import type { Message } from '@shared/types';
+import type { ThemedToken } from 'shiki';
+import { useEffect, useState } from 'react';
 import { ToolCallBlock } from './ToolCallBlock';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { highlightCode, languageFromMarkdownClass } from '../../utils/highlighter';
 import styles from './ChatMessage.module.css';
 
 interface ChatMessageProps {
@@ -9,7 +12,6 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
-  // Tool use (assistant requesting a tool call)
   if (message.role === 'assistant' && message.tool_use_id) {
     return (
       <ToolCallBlock
@@ -20,7 +22,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
     );
   }
 
-  // Tool result
   if (message.role === 'tool') {
     return (
       <ToolCallBlock
@@ -45,11 +46,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
               if (isInline) {
                 return <code className={styles.inlineCode} {...props}>{children}</code>;
               }
-              return (
-                <pre className={styles.codeBlock}>
-                  <code className={className} {...props}>{children}</code>
-                </pre>
-              );
+              const text = String(children).replace(/\n$/, '');
+              return <ShikiCodeBlock code={text} className={className} />;
             },
           }}
         >
@@ -57,5 +55,44 @@ export function ChatMessage({ message }: ChatMessageProps) {
         </ReactMarkdown>
       </div>
     </div>
+  );
+}
+
+interface ShikiCodeBlockProps {
+  code: string;
+  className?: string;
+}
+
+function ShikiCodeBlock({ code, className }: ShikiCodeBlockProps) {
+  const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
+  const lang = languageFromMarkdownClass(className);
+
+  useEffect(() => {
+    let cancelled = false;
+    highlightCode(code, lang).then((res) => {
+      if (!cancelled) setTokens(res.lines);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [code, lang]);
+
+  return (
+    <pre className={styles.codeBlock}>
+      <code className={className}>
+        {tokens
+          ? tokens.map((lineTokens, i) => (
+              <span key={i} className={styles.codeLine}>
+                {lineTokens.map((t, j) => (
+                  <span key={j} style={t.color ? { color: t.color } : undefined}>
+                    {t.content}
+                  </span>
+                ))}
+                {'\n'}
+              </span>
+            ))
+          : code}
+      </code>
+    </pre>
   );
 }

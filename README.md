@@ -6,7 +6,7 @@ Multi-workspace LLM development environment. Run multiple AI coding sessions acr
 
 - **Multi-LLM**: Claude, OpenAI, Ollama, and custom endpoints via API keys
 - **Workspace Tree**: Organize sessions by workspace/repo with color labels
-- **Inline Review**: Monaco diff editor with inline comments, plan annotations (redline-style)
+- **Inline Review**: Custom unified-diff renderer with shiki syntax highlighting, inline comments, plan annotations (redline-style)
 - **Annotation Feedback**: Comments on diffs/plans automatically feed back to the LLM
 - **Git-Aware**: Branch switching, diff viewer, embedded terminal
 - **Concurrent Sessions**: Multiple threads streaming simultaneously across workspaces
@@ -51,8 +51,8 @@ Electron (desktop shell)
         └── Session Runner (prompt → LLM → tool loop)
   └── React + Vite (frontend)
         ├── Sidebar (workspace tree with colors)
-        ├── Chat Panel (streaming + tool calls)
-        └── Review Panel (Monaco diff + plan annotations)
+        ├── Chat Panel (streaming + tool calls + dismissible embedded terminal)
+        └── Review Panel (shiki-highlighted diff + plan annotations)
 ```
 
 ## Transfer to Another Machine
@@ -71,6 +71,6 @@ pnpm run electron:dev
 
 - Electron 35, React 19, Vite 7, TypeScript 5.7
 - SQLite (better-sqlite3, WAL mode)
-- Monaco Editor (lazy-loaded)
+- shiki (lazy-loaded syntax highlighting)
 - xterm.js + node-pty
 - @anthropic-ai/sdk, openai

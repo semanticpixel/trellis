@@ -21,9 +21,9 @@ Every item below follows this structure. When adding new items, match the shape 
 
 ### Priority tiers
 
-- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — DONE), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
-- **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
-- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — may be superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
+- **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
+- **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
+- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron).
 
 ### Dependency graph
@@ -32,8 +32,8 @@ Some items share infrastructure or unblock others. Do the upstream item first.
 
 - **Context-snippet anchoring** — items 24 and 28 both need this. Build it once in a shared module (`src/review/anchoring.ts`), reuse for diff and plan annotations.
 - **Custom menu + IPC** — item 22 (app branding) and item 23 (shortcut conflict) both involve `Menu.buildFromTemplate` in `main.mjs`. Bundle them.
-- **Monaco removal** — items 21 (disposal error) and 27 (sleek diff renderer) both benefit from dropping Monaco for the diff view. Item 27 subsumes item 21 if done.
-- **Right-panel layout** — items 25 (terminal as tab) and 27 (stacked diff + terminal) conflict. Item 27's stacked approach is the final answer; skip item 25.
+- **Monaco removal** — items 21 (disposal error) and 27 (sleek diff renderer) — DONE. Item 27 dropped Monaco entirely from the diff view *and* chat code blocks; item 21 is obsolete.
+- **Right-panel layout** — items 25 (terminal as tab) and 27 (stacked diff + terminal) — RESOLVED. Both skipped after dogfooding: terminal stays in ChatPanel for the run-commands-while-talking flow.
 - **MCP + permissions** — items 6 (MCP) and 8 (permissions) are orthogonal but UI work in Settings overlaps. Can share a Settings tab scaffolding.
 - **Session recovery** — item 4 (startup recovery) and item 26 (pending user inputs) both need "resume orphaned state on startup." Build the pattern once.
 
@@ -324,9 +324,9 @@ Lines 69-70 in `dashboard/src/ui/tokens.css` are identical. Remove the duplicate
 
 Fixed in commit `562805a` — swapped `overflow: hidden` to `overflow: clip` on `.block` in `ToolCallBlock.module.css`. The hidden container was collapsing content due to establishing a new block formatting context; `clip` still respects `border-radius` without that side effect. Follow-up item 38 (group consecutive tool calls) still open for a richer collapsed UX.
 
-### ~~21. Monaco DiffEditor disposal error when switching files or closing review panel~~ DONE
+### ~~21. Monaco DiffEditor disposal error when switching files or closing review panel~~ OBSOLETE
 
-Fixed in commit `6984f7f` (PR #46) via Option A — added `key={selectedFile}` to the `<DiffEditor>` in `DiffTab.tsx` so React fully unmounts the previous Monaco instance and mounts a fresh one on file switch, eliminating the TextModel-disposal race. Option B (keep-current-model props + manual lifecycle) and the `@monaco-editor/react` upgrade path remain available if this proves insufficient. Item 27 (sleek custom diff renderer) would subsume this change entirely by dropping Monaco from the review panel; until then the `key` prop stays.
+Originally fixed in commit `6984f7f` (PR #46) via the `key={selectedFile}` workaround. **Superseded by item 27**: Monaco is no longer used in the diff view (or anywhere else). The `key` prop and the entire `@monaco-editor/react` dependency were removed when the custom shiki-based diff renderer landed.
 
 <details>
 <summary>Original spec</summary>
@@ -513,7 +513,12 @@ Recommended: **Option A**. Matches established UX (GitHub, GitLab), is robust, a
 
 </details>
 
-### 25. Move terminal into review panel as a tab (like Claude's desktop app)
+### ~~25. Move terminal into review panel as a tab~~ SKIPPED
+
+After trying both layouts during item 27, the user decided terminal belongs in `ChatPanel` (run-commands-while-talking flow), not in the review panel. Terminal stays as the dismissible strip below the chat composer.
+
+<details>
+<summary>Original spec</summary>
 
 **Current state:** Terminal is a collapsible strip at the bottom of the chat pane. Diff and Plan are tabs in the right-side review panel. Two different UI patterns for "contextual views," which is inconsistent.
 
@@ -536,6 +541,8 @@ Recommended: **Option A**. Matches established UX (GitHub, GitLab), is robust, a
 6. Terminal session should persist when switching tabs (don't unmount the xterm instance — use CSS `display: none` or a tab-content caching approach)
 
 **Stretch — Views dropdown:** If you end up with 4+ tabs, switch the tab bar to a dropdown like Claude's screenshot. Tabs are fine for 2-3; dropdown scales past that.
+
+</details>
 
 ### 26. LLM-initiated questions (AskUserQuestion tool)
 
@@ -604,7 +611,23 @@ Recommended: **Option A**. Matches established UX (GitHub, GitLab), is robust, a
 
 **System prompt nudge:** Update the default system prompt in `runner.ts` to encourage use of `ask_user` for ambiguous or destructive operations. Something like: "When you have a choice between plausible alternatives (especially destructive ones), use the `ask_user` tool instead of guessing."
 
-### 27. Sleeker diff + terminal rendering (Claude Desktop style)
+### ~~27. Sleeker diff + terminal rendering (Claude Desktop style)~~ DONE
+
+**Scope note (2026-04-17):** The "stack terminal below the active review tab" portion of this item is no longer in scope. After trying both layouts, the user decided terminal belongs in ChatPanel — their flow is run-commands-while-talking, not verify-after-reviewing. Item 25 is also effectively moot for the same reason. This item now covers only the diff renderer swap + chat code block highlighting swap.
+
+Implemented by removing `@monaco-editor/react` and `monaco-editor` entirely. New pieces:
+
+- `dashboard/src/utils/diffParser.ts` — parses the unified-diff `patch` from `GET /api/repos/:id/diff` into per-file hunks plus inter-hunk gap ranges.
+- `dashboard/src/utils/highlighter.ts` — lazy singleton shiki highlighter (`github-dark` theme) covering the languages we ship.
+- `dashboard/src/components/review/DiffTab.tsx` — row-based renderer: `[oldNo | newNo] [colored marker bar] [+/- sign] [highlighted code]`. Inter-hunk gaps show 3 lines by default with a "Show N more unmodified lines" expander. Click any row's gutter to anchor an `InlineComment` at that modified-file line; existing annotation CRUD + staleness logic (item 24) is unchanged.
+- DiffTab header: `base → currentBranch` row at the top; per-file heading shows `path` followed by `+N -M` change counts.
+- Chat code blocks (`ChatMessage.tsx`) also moved to shiki, so monaco is gone from the bundle.
+- Terminal placement was *not* changed — `EmbeddedTerminal` continues to mount inside `ChatPanel` as a dismissible strip below the composer (per the scope note above).
+
+**Subsumed:** item 21 (Monaco TextModel disposal — gone with Monaco).
+
+<details>
+<summary>Original spec</summary>
 
 **What Claude Desktop does:**
 - **Header:** branch line — `main → chore/text-use-global-type-classes`
@@ -643,6 +666,8 @@ This also resolves item 21 (Monaco TextModel disposal error) entirely by removin
 - `Cmd+\`` toggles the terminal strip without changing the active tab
 
 **Tradeoff:** You lose the richer features Monaco provides (find-in-diff, minimap, click-to-copy line, etc.). For a review panel those aren't essential — and Claude Desktop demonstrates a compelling UX without them.
+
+</details>
 
 ### 28. Text-range plan annotations (Claude Desktop style)
 

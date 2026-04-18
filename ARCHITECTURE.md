@@ -90,3 +90,16 @@ Tools are scoped to the thread's workspace directory:
 ## Database
 
 SQLite with WAL mode for concurrent read/write. Schema: workspaces → repos → threads → messages. Annotations table for diff/plan comments. Providers table for LLM config (keys stored separately in OS keychain via safeStorage).
+
+## Diff Viewer
+
+The review panel renders diffs with a custom row-based component (no Monaco). Pipeline:
+
+1. `GET /api/repos/:id/diff` returns a unified-diff `patch` plus a per-file summary.
+2. `dashboard/src/utils/diffParser.ts` splits the patch into per-file hunks with `{ type, content, oldNo, newNo }` line entries and computes the inter-hunk gaps over the modified file's line range.
+3. `dashboard/src/utils/highlighter.ts` lazily loads a singleton shiki highlighter (`createHighlighter`, `github-dark` theme) and tokenises the modified + original file content once per file switch.
+4. `DiffTab` renders each row as `[oldNo | newNo] [colored marker bar] [+/- sign] [highlighted code]`. Inter-hunk gaps render the first three lines from the modified file inline with a "Show N more unmodified lines" expander. Clicking a row's gutter opens the existing `InlineComment` form anchored to the modified-file line number.
+
+Annotations still anchor to `<file>:<modifiedLineNumber>` so the staleness pipeline (`src/review/anchoring.ts`) is renderer-agnostic.
+
+The embedded terminal mounts inside `ChatPanel` below the composer (not under the review tab) — the user's flow is run-commands-while-talking, so the terminal stays adjacent to chat. `Cmd+\`` toggles its visibility.

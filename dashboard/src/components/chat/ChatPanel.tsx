@@ -108,9 +108,7 @@ export function ChatPanel({
         />
       )}
 
-      {error && (
-        <div className={styles.errorBar}>{error}</div>
-      )}
+      {error && <div className={styles.errorBar}>{error}</div>}
 
       <ChatComposer
         key={thread.id}

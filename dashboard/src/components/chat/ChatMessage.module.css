@@ -68,3 +68,7 @@
   background: none;
   padding: 0;
 }
+
+.codeLine {
+  display: inline;
+}

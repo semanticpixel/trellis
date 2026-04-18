@@ -21,6 +21,18 @@ const SUGGESTIONS = [
   { icon: TestTube, label: 'Write tests', prompt: 'Identify untested code paths and help me write comprehensive tests for them.' },
 ];
 
+const WELCOME_PHRASES = [
+  "Let's build",
+  "Let's cook",
+  'Time to cook',
+  'Building time',
+  'Idea to reality',
+  'Ship it',
+  "What's next?",
+  "Let's make something",
+  'Back to the forge',
+];
+
 export function WelcomeState({
   hasWorkspaces,
   workspaces,
@@ -30,6 +42,9 @@ export function WelcomeState({
 }: WelcomeStateProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [pickerPrompt, setPickerPrompt] = useState<string | null>(null);
+  const [heading] = useState(
+    () => WELCOME_PHRASES[Math.floor(Math.random() * WELCOME_PHRASES.length)],
+  );
   const pickerRef = useRef<HTMLDivElement>(null);
 
   // Close picker on outside click
@@ -80,7 +95,7 @@ export function WelcomeState({
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.heading}>Let's build</h1>
+      <h1 className={styles.heading}>{heading}</h1>
 
       {inThread ? (
         <p className={styles.subtitle}>

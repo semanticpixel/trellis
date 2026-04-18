@@ -4,7 +4,6 @@ import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import type { Thread } from '@shared/types';
 import styles from './ReviewPanel.module.css';
 
-// Lazy-load tabs since they include Monaco
 import { lazy, Suspense } from 'react';
 const DiffTab = lazy(() => import('./DiffTab').then((m) => ({ default: m.DiffTab })));
 const PlanTab = lazy(() => import('./PlanTab').then((m) => ({ default: m.PlanTab })));
@@ -39,18 +38,13 @@ export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps)
   const toggleAnnotationSelection = useCallback((id: string) => {
     setSelectedAnnotationIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
   const selectAllUnresolved = useCallback(() => {
-    // Default "All" excludes outdated annotations — reviewer can still
-    // tick them individually if they want to resend.
     setSelectedAnnotationIds(new Set(activeAnnotations.map((a) => a.id)));
   }, [activeAnnotations]);
 
@@ -60,9 +54,7 @@ export function ReviewPanel({ thread, repoId, autoFocusFile }: ReviewPanelProps)
     sendFeedback.mutate(
       { threadId, annotationIds: ids },
       {
-        onSuccess: () => {
-          setSelectedAnnotationIds(new Set());
-        },
+        onSuccess: () => setSelectedAnnotationIds(new Set()),
       },
     );
   }, [threadId, selectedUnresolved, sendFeedback]);

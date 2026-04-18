@@ -35,9 +35,10 @@ trellis/
 - No inline styles — use CSS Modules (`.module.css`) exclusively in React components.
 - No hardcoded colors — all colors reference CSS custom properties from `tokens.css`.
 
-### Monaco Editor
-- ALWAYS lazy-load via `React.lazy()` + `Suspense` — never a top-level import.
-- Used for: code blocks in chat messages, DiffEditor in review panel.
+### Syntax highlighting
+- Use `shiki` (lazy-loaded singleton) for diff rows and chat code blocks.
+- Helpers live in `dashboard/src/utils/highlighter.ts`.
+- The diff renderer is a custom row-based component over a parsed unified diff (`dashboard/src/utils/diffParser.ts`) — no Monaco.
 
 ### API Keys
 - Store/retrieve via `electron.safeStorage` IPC only.

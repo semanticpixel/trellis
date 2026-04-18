@@ -65,6 +65,12 @@
   --status-done: #999999;
   --status-error: #dc2626;
 
+  /* Diff */
+  --diff-add-bg: rgba(46, 160, 67, 0.10);
+  --diff-add-fg: #16a34a;
+  --diff-del-bg: rgba(248, 81, 73, 0.10);
+  --diff-del-fg: #dc2626;
+
   /* Shadows */
   --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -111,6 +117,12 @@
     --status-approval: #22c55e;
     --status-done: #666666;
     --status-error: #ef4444;
+
+    /* Diff */
+    --diff-add-bg: rgba(46, 160, 67, 0.18);
+    --diff-add-fg: #3fb950;
+    --diff-del-bg: rgba(248, 81, 73, 0.18);
+    --diff-del-fg: #f85149;
 
     /* Shadows */
     --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -159,6 +171,11 @@
   --status-done: #666666;
   --status-error: #ef4444;
 
+  --diff-add-bg: rgba(46, 160, 67, 0.18);
+  --diff-add-fg: #3fb950;
+  --diff-del-bg: rgba(248, 81, 73, 0.18);
+  --diff-del-fg: #f85149;
+
   --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.15);
   --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.6);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -201,6 +218,11 @@
   --status-approval: #16a34a;
   --status-done: #999999;
   --status-error: #dc2626;
+
+  --diff-add-bg: rgba(46, 160, 67, 0.10);
+  --diff-add-fg: #16a34a;
+  --diff-del-bg: rgba(248, 81, 73, 0.10);
+  --diff-del-fg: #dc2626;
 
   --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.4);

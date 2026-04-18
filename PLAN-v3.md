@@ -23,7 +23,7 @@ Every item below follows this structure. When adding new items, match the shape 
 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
-- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
+- **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles), 13 (cost display), 14 (Cmd+K), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9), 18 (duplicate shadow token), 19 (hardcoded color — DONE), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish), 47 (virtualize file list — candidate for SPECULATIVE if unused).
 
 ### Dependency graph
@@ -300,9 +300,9 @@ Standard shortcut. Currently no keyboard path to search.
 
 Up/Down to move between threads, Enter to select. Standard tree navigation.
 
-### 16. Auto-focus composer on thread select
+### ~~16. Auto-focus composer on thread select~~ DONE
 
-When a thread is selected, focus the composer textarea automatically. Right now you have to click it.
+`App.tsx` bumps a `composerFocusToken` inside `handleSelectThread` and threads it through `ChatPanel` → `ChatComposer`. The composer focuses its textarea on token change but skips when `document.activeElement` is already an `INPUT` / `TEXTAREA` / contenteditable surface (modal, sidebar search, etc.). The token starts at 0 so initial app load with a persisted thread does not steal focus.
 
 ### 17. Extend Cmd+1-4 workspace shortcuts
 

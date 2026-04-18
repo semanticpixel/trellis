@@ -22,6 +22,7 @@ interface ChatPanelProps {
   hasWorkspaces: boolean;
   workspaces: Workspace[];
   onStartWithPrompt: (workspaceId: string, prompt: string) => void;
+  composerFocusToken?: number;
 }
 
 export function ChatPanel({
@@ -36,6 +37,7 @@ export function ChatPanel({
   hasWorkspaces,
   workspaces,
   onStartWithPrompt,
+  composerFocusToken,
 }: ChatPanelProps) {
   const threadId = thread?.id ?? null;
   const { data: messages } = useMessages(threadId);
@@ -117,6 +119,7 @@ export function ChatPanel({
         disabled={isStreaming || sendMessage.isPending}
         isStreaming={isStreaming}
         onAbort={handleAbort}
+        autoFocusToken={composerFocusToken}
       />
 
       {terminalOpen && workspaceId && terminalCwd && (

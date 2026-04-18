@@ -24,7 +24,7 @@ Every item below follows this structure. When adding new items, match the shape 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference — DONE), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token), 19 (hardcoded color — DONE), 29 (rotating welcome), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish), 47 (virtualize file list — candidate for SPECULATIVE if unused).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard).
 
 ### Dependency graph
 
@@ -1317,6 +1317,38 @@ const lines = patch.split('\n').map((l) => l.endsWith('\r') ? l.slice(0, -1) : l
 **Acceptance:** A 500-file diff renders the initial view in <100ms and scrolls at 60fps.
 
 **Out of scope:** Virtualizing the diff body (individual hunks) — that's a separate, larger concern.
+
+### 48. Add focus guard to Cmd+K sidebar search shortcut
+
+**Symptom:** Pressing Cmd+K while typing in another input (a modal textarea, the sidebar search itself, the composer) steals focus to the sidebar search. The original brief for item 14 said "should not steal focus from other inputs," but the shipped handler has no guard.
+
+**Cause:** The Cmd+K handler in `App.tsx` calls `preventDefault()` and forcibly focuses the sidebar search input without checking the current focus context. Item 16 (auto-focus composer) uses the right pattern — it skips focus if `document.activeElement` is an INPUT / TEXTAREA / contenteditable element.
+
+**Fix:** Add a guard before the Cmd+K focus call:
+
+```ts
+if (meta && e.key === 'k' && !e.shiftKey) {
+  const ae = document.activeElement as HTMLElement | null;
+  const inEditable =
+    ae &&
+    (ae.tagName === 'INPUT' ||
+      ae.tagName === 'TEXTAREA' ||
+      ae.isContentEditable);
+  // If already in an editable element, only hijack when it's the sidebar search itself
+  // (toggle-off behavior), otherwise let the keystroke pass through.
+  if (inEditable && ae !== sidebarSearchRef.current) return;
+  e.preventDefault();
+  sidebarSearchRef.current?.scrollIntoView(...);
+  sidebarSearchRef.current?.focus();
+}
+```
+
+**Files to touch:**
+- `dashboard/src/App.tsx` — add the focus guard around the Cmd+K handler
+
+**Acceptance:** Type in a modal textarea → press Cmd+K → focus stays in the textarea, no jump. Press Cmd+K while focused anywhere non-editable (message list, sidebar tree) → sidebar search focuses. Pressing Cmd+K while already in sidebar search → no-op (already focused).
+
+**Out of scope:** Reworking Cmd+K to toggle the search open/closed. Making other global shortcuts guard similarly — only the explicit regression from item 14's brief is in scope here.
 
 ---
 

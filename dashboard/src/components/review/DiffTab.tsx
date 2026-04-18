@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ThemedToken } from 'shiki';
+import { FileDigit } from 'lucide-react';
 import { DiffFileList, type AnnotationCount } from './DiffFileList';
 import { InlineComment } from './InlineComment';
 import { AnnotationBadge } from './AnnotationBadge';
@@ -291,6 +292,17 @@ function DiffBody({
   onSelectLine,
   rowRefs,
 }: DiffBodyProps) {
+  if (file.isBinary) {
+    return (
+      <div className={styles.diffBody}>
+        <div className={styles.binaryPlaceholder}>
+          <FileDigit size={14} aria-hidden />
+          <span>Binary file — diff not displayed</span>
+        </div>
+      </div>
+    );
+  }
+
   const segments: React.ReactNode[] = [];
   for (let i = 0; i < file.hunks.length; i++) {
     const gap = gaps[i];

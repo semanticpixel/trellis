@@ -3,6 +3,7 @@ import type { WSEventType } from '../shared/types.js';
 import type { LLMAdapter } from '../llm/types.js';
 import { runThread, type RunnerContext } from './runner.js';
 import { getAdapter } from '../llm/adapter.js';
+import { mcpManager } from '../mcp/manager.js';
 
 export class SessionManager {
   private activeSessions = new Map<string, AbortController>();
@@ -35,6 +36,11 @@ export class SessionManager {
       return;
     }
 
+    const workspace = this.ctx.store.getWorkspace(thread.workspace_id);
+    if (workspace) {
+      await mcpManager.acquire(workspace.id, workspace.path, threadId);
+    }
+
     const controller = new AbortController();
     this.activeSessions.set(threadId, controller);
 
@@ -42,6 +48,9 @@ export class SessionManager {
       await runThread(threadId, adapter, this.ctx, controller.signal);
     } finally {
       this.activeSessions.delete(threadId);
+      if (workspace) {
+        await mcpManager.release(workspace.id, threadId);
+      }
     }
   }
 

@@ -349,3 +349,188 @@
 .keyMissing {
   color: var(--text-tertiary);
 }
+
+/* MCP tab */
+
+.mcpHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.mcpHint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: var(--space-xs) 0 var(--space-md) 0;
+  line-height: 1.5;
+}
+
+.mcpHint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-code);
+}
+
+.mcpCard {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.mcpCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.mcpName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.mcpSource {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-code);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mcpMeta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.mcpMeta code {
+  font-family: inherit;
+}
+
+.mcpError {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 12px;
+  color: var(--error);
+}
+
+.mcpLogToggle {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.mcpLogToggle:hover {
+  color: var(--text-primary);
+}
+
+.mcpLogs {
+  margin: 0;
+  padding: var(--space-sm);
+  background: var(--bg-code);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.mcpStateReady,
+.mcpStateStarting,
+.mcpStateError,
+.mcpStateIdle {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mcpStateReady {
+  background: var(--accent-subtle);
+  color: var(--success);
+}
+
+.mcpStateStarting {
+  background: var(--bg-code);
+  color: var(--text-secondary);
+}
+
+.mcpStateError {
+  background: var(--bg-code);
+  color: var(--error);
+}
+
+.mcpStateIdle {
+  background: var(--bg-code);
+  color: var(--text-tertiary);
+}
+
+.mcpImportBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  border: 1px dashed var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mcpImportBanner:hover {
+  background: var(--bg-hover);
+}
+
+.mcpImportRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  cursor: pointer;
+}
+
+.textarea {
+  padding: var(--space-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  outline: none;
+  resize: vertical;
+}
+
+.textarea:focus {
+  border-color: var(--accent);
+}

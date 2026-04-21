@@ -22,7 +22,7 @@ Every item below follows this structure. When adding new items, match the shape 
 ### Priority tiers
 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
-- **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen).
+- **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP — stdio DONE, HTTP/SSE in item 50), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen), 50 (HTTP/SSE MCP transport).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference — DONE), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard).
 
@@ -155,7 +155,9 @@ Currently the notification dot only fires on `thread_status` changes. If the LLM
 
 </details>
 
-### 6. MCP server integration (priority)
+### 6. MCP server integration (priority) — **stdio shipped, HTTP/SSE still open (see item 50)**
+
+> **Status (2026-04-20):** Stdio transport landed in commit `4084654` (PR #79). Audit found that HTTP-based MCP servers (the dominant pattern for hosted SaaS — Sourcegraph, Glean, Context7, Coda, etc.) are silently dropped because `MCPServerConfigSchema` requires `command` and `MCPManager` only spawns `StdioClientTransport`. For most users (including this one) HTTP is where the majority of MCP servers live, so item 6 is functionally half-done until item 50 ships.
 
 Trellis only exposes its 5 built-in tools. All MCP servers configured for Claude Code (Atlassian, GitLab, Glean, Context7, Chrome DevTools, Sumologic, etc.) are inaccessible from Trellis, which makes it feel limited for daily use. This is likely the single biggest feature gap.
 
@@ -1351,6 +1353,78 @@ if (meta && e.key === 'k' && !e.shiftKey) {
 **Acceptance:** Type in a modal textarea → press Cmd+K → focus stays in the textarea, no jump. Press Cmd+K while focused anywhere non-editable (message list, sidebar tree) → sidebar search focuses. Pressing Cmd+K while already in sidebar search → no-op (already focused).
 
 **Out of scope:** Reworking Cmd+K to toggle the search open/closed. Making other global shortcuts guard similarly — only the explicit regression from item 14's brief is in scope here.
+
+### 50. HTTP/SSE transport for MCP servers (completes item 6)
+
+**Symptom:** After item 6 shipped (stdio MCP integration), HTTP-based MCP servers configured in Claude Code (`~/.claude.json`'s `mcpServers` block where entries have `{type: "http", url: ...}` instead of `{command: ...}`) are silently dropped from import candidates and never spawned. For users whose MCP setup is dominated by hosted services (Sourcegraph, Glean, Context7, Coda, Statsig, Sumologic, Contentful, etc.), this means most of their tooling is invisible to Trellis.
+
+**Cause:** Two interlocking gaps from item 6's stdio-only scope:
+
+1. **Schema** (`src/mcp/config.ts`): `MCPServerConfigSchema` requires `command: z.string().min(1)`. HTTP entries have no `command`, so they fail per-entry validation. Worse, `extractMcpServers()` uses `z.record(MCPServerConfigSchema).safeParse()` which fails the **entire record** if even one entry fails — so the presence of any HTTP server drops *all* top-level entries from import candidates, including valid stdio ones.
+
+2. **Manager** (`src/mcp/manager.ts`): only imports `StdioClientTransport` from the SDK. Even if HTTP entries passed validation, there's no transport implementation to spawn them.
+
+**Why this matters:** HTTP transport is a first-class part of the MCP spec, not an edge case. The official `@modelcontextprotocol/sdk` ships clients for stdio + HTTP+SSE + Streamable HTTP. Hosted SaaS MCP servers almost always use HTTP because it removes the local-install burden, supports server-side auth (OAuth, bearer tokens), and centralizes versioning. Skipping HTTP means Trellis can't reach the majority of an average user's MCP servers.
+
+**Fix:**
+
+1. **Discriminated union schema** in `src/mcp/config.ts`:
+   ```ts
+   const StdioServerSchema = z.object({
+     type: z.literal('stdio').optional(),  // optional for backward compat with v1 stdio-only entries
+     command: z.string().min(1),
+     args: z.array(z.string()).optional(),
+     env: z.record(z.string()).optional(),
+     cwd: z.string().optional(),
+   });
+   const HttpServerSchema = z.object({
+     type: z.literal('http'),
+     url: z.string().url(),
+     headers: z.record(z.string()).optional(),
+   });
+   const SseServerSchema = z.object({
+     type: z.literal('sse'),
+     url: z.string().url(),
+     headers: z.record(z.string()).optional(),
+   });
+   export const MCPServerConfigSchema = z.discriminatedUnion('type', [HttpServerSchema, SseServerSchema])
+     .or(StdioServerSchema);
+   ```
+   The `.or(StdioServerSchema)` handles legacy stdio entries that omit `type` entirely.
+
+2. **Per-entry validation** in `extractMcpServers()`: stop calling `z.record(...).safeParse()` on the whole record. Iterate entries, `safeParse` each one individually, skip + log invalid ones, keep the rest. One bad entry no longer drops the whole batch.
+
+3. **Transport router** in `MCPManager.spawnServer()`: switch on `cfg.type` (defaulting to `'stdio'` if absent) and instantiate the right transport:
+   - `stdio` → `StdioClientTransport` (existing path)
+   - `http` → `StreamableHTTPClientTransport` from `@modelcontextprotocol/sdk/client/streamableHttp.js`
+   - `sse` → `SSEClientTransport` from `@modelcontextprotocol/sdk/client/sse.js`
+
+4. **HTTP-specific lifecycle**: HTTP transports don't have stdin/stdout/stderr. Adapt the manager's process tracking — no PID, no stderr ring buffer for HTTP servers. Surface "transport: http" + URL + last response status in the Settings UI in place of the stderr toggle.
+
+5. **Settings UI** (`SettingsOverlay.tsx`): edit form swaps fields based on transport type:
+   - stdio → command, args, env (current)
+   - http/sse → URL, optional headers (key/value pairs)
+   - Type selector at the top of the edit form
+
+6. **Auth headers**: many hosted MCP servers need a bearer token. The `headers` field accepts arbitrary key/value pairs — users can set `Authorization: Bearer ...` or whatever the server needs. Keep secrets out of `.mcp.json` itself by supporting `${env:VAR_NAME}` interpolation in header values, resolved at spawn time. Out of scope: full OAuth flows for servers that require dynamic token refresh.
+
+**Files to touch:**
+- `src/mcp/config.ts` — discriminated union schema + per-entry validation
+- `src/mcp/manager.ts` — transport router, lifecycle adaptations for HTTP
+- `dashboard/src/components/settings/SettingsOverlay.tsx` — type-aware edit form
+- `dashboard/src/hooks/useWorkspaces.ts` — types for HTTP server payloads
+
+**Acceptance:**
+- After fix, `detectClaudeCodeConfigs()` returns all 10 top-level entries from the user's `.claude.json` (8 HTTP + 2 stdio), not 0.
+- Importing them all and starting a thread successfully calls a tool from at least one HTTP server (e.g. `mcp__context7__search`).
+- Settings → MCP shows transport type per row; edit form swaps fields based on type.
+- One bad entry in `.mcp.json` (e.g. `command: ""`) is logged and skipped without dropping the rest.
+
+**Out of scope:**
+- OAuth flows that require browser redirects (those need a separate auth-handling item)
+- Dynamic token refresh (assume static bearer tokens for now)
+- Header value secret-prompting UI (env var interpolation is enough for v1)
+- Permissions gating (item 8) — MCP tools still auto-execute regardless of transport
 
 ---
 

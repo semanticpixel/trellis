@@ -138,13 +138,122 @@ describe('TrellisOAuthProvider', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("invalidateCredentials('discovery') is a no-op (we don't persist discovery state)", async () => {
-    const fetchMock = stubFetch(() => {
-      throw new Error('fetch should not be called for discovery scope');
+  it("invalidateCredentials('discovery') deletes the persisted discovery blob", async () => {
+    const fetchMock = stubFetch((url, init) => {
+      expect(url).toBe('http://127.0.0.1:55555/mcp-oauth/glean/discovery');
+      expect(init.method).toBe('DELETE');
+      return jsonResponse(200, { ok: true });
     });
     const provider = new TrellisOAuthProvider('glean');
     await provider.invalidateCredentials('discovery');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('saveDiscoveryState persists the blob via the bridge PUT endpoint', async () => {
+    const state = {
+      authorizationServerUrl: 'https://auth.example/',
+      authorizationServerMetadata: {
+        issuer: 'https://auth.example/',
+        authorization_endpoint: 'https://auth.example/authorize',
+        token_endpoint: 'https://auth.example/token',
+        response_types_supported: ['code'],
+      },
+    };
+    const fetchMock = stubFetch((url, init) => {
+      expect(url).toBe('http://127.0.0.1:55555/mcp-oauth/glean/discovery');
+      expect(init.method).toBe('PUT');
+      expect(JSON.parse(String(init.body))).toEqual({ value: JSON.stringify(state) });
+      return jsonResponse(200, { ok: true });
+    });
+    const provider = new TrellisOAuthProvider('glean');
+    // SDK's AuthorizationServerMetadata has many required fields we don't need
+    // to exercise here; cast through unknown to keep the fixture small.
+    await provider.saveDiscoveryState(
+      state as unknown as Parameters<typeof provider.saveDiscoveryState>[0],
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('discoveryState parses the persisted JSON blob from the bridge', async () => {
+    const cached = {
+      authorizationServerUrl: 'https://auth.example/',
+      authorizationServerMetadata: {
+        issuer: 'https://auth.example/',
+        authorization_endpoint: 'https://auth.example/authorize',
+        token_endpoint: 'https://auth.example/token',
+        response_types_supported: ['code'],
+      },
+    };
+    stubFetch((url) => {
+      expect(url).toBe('http://127.0.0.1:55555/mcp-oauth/glean/discovery');
+      return jsonResponse(200, { value: JSON.stringify(cached) });
+    });
+    const provider = new TrellisOAuthProvider('glean');
+    await expect(provider.discoveryState()).resolves.toEqual(cached);
+  });
+
+  it('discoveryState returns undefined when nothing is persisted', async () => {
+    stubFetch(() => jsonResponse(200, { value: null }));
+    const provider = new TrellisOAuthProvider('glean');
+    await expect(provider.discoveryState()).resolves.toBeUndefined();
+  });
+
+  it('reportExchangeResult posts the outcome to /oauth/exchange-complete using the tracked state', async () => {
+    const flowState = 'csrf-state-for-exchange';
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    stubFetch((url, init) => {
+      calls.push({ url, init });
+      if (url.endsWith('/oauth/start-flow')) {
+        return jsonResponse(200, { code: 'auth-code', state: flowState });
+      }
+      if (url.endsWith('/oauth/exchange-complete')) {
+        return jsonResponse(200, { ok: true });
+      }
+      throw new Error(`unexpected call: ${url}`);
+    });
+    const provider = new TrellisOAuthProvider('glean');
+    await provider.redirectToAuthorization(
+      new URL(`https://auth.example/authorize?state=${flowState}&client_id=x`),
+    );
+    await provider.waitForAuthorizationCode();
+    await provider.reportExchangeResult('failed', 'invalid_grant');
+
+    const exchangeCall = calls.find((c) => c.url.endsWith('/oauth/exchange-complete'));
+    expect(exchangeCall).toBeDefined();
+    expect(exchangeCall!.init.method).toBe('POST');
+    expect(JSON.parse(String(exchangeCall!.init.body))).toEqual({
+      state: flowState,
+      result: 'failed',
+      message: 'invalid_grant',
+    });
+  });
+
+  it('reportExchangeResult is a no-op when no flow is pending', async () => {
+    const fetchMock = stubFetch(() => {
+      throw new Error('fetch should not be called without a pending flow');
+    });
+    const provider = new TrellisOAuthProvider('glean');
+    await provider.reportExchangeResult('success');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reportExchangeResult swallows bridge errors so UX polish never fails the flow', async () => {
+    const flowState = 'csrf-state-swallow';
+    stubFetch((url) => {
+      if (url.endsWith('/oauth/start-flow')) {
+        return jsonResponse(200, { code: 'auth-code', state: flowState });
+      }
+      return jsonResponse(500, { error: 'bridge exploded' });
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const provider = new TrellisOAuthProvider('glean');
+    await provider.redirectToAuthorization(
+      new URL(`https://auth.example/authorize?state=${flowState}&client_id=x`),
+    );
+    await provider.waitForAuthorizationCode();
+    await expect(provider.reportExchangeResult('success')).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('surfaces a clear error when the bridge hangs past the 5s timeout', async () => {

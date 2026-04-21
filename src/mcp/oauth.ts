@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { randomBytes } from 'crypto';
 import type {
   OAuthClientProvider,
+  OAuthDiscoveryState,
 } from '@modelcontextprotocol/sdk/client/auth.js';
 import type {
   OAuthClientMetadata,
@@ -17,8 +18,10 @@ import type {
  * Must stay in sync with the `MCP_OAUTH_KINDS` list + `all` handler in
  * electron/main.mjs.
  */
-const SECRET_KINDS = ['tokens', 'client-info', 'code-verifier'] as const;
+const SECRET_KINDS = ['tokens', 'client-info', 'code-verifier', 'discovery'] as const;
 type SecretKind = (typeof SECRET_KINDS)[number];
+
+export type ExchangeResult = 'success' | 'failed';
 
 const BRIDGE_FILE = join(homedir(), '.trellis', 'oauth-bridge.json');
 const BRIDGE_TIMEOUT_MS = 5000;
@@ -120,6 +123,10 @@ export class TrellisOAuthProvider implements OAuthClientProvider {
   // browser callback; the caller retrieves the captured code via
   // `waitForAuthorizationCode()` after the initial auth() pass returns REDIRECT.
   private pendingCallback: Promise<string> | null = null;
+  // The CSRF state we issued for the active flow. Kept around so
+  // `reportExchangeResult()` can tell the bridge which browser session's
+  // "Completing authorization…" page to flip to success/failed.
+  private pendingState: string | null = null;
 
   constructor(
     public readonly serverName: string,
@@ -189,6 +196,21 @@ export class TrellisOAuthProvider implements OAuthClientProvider {
     await this.writeSecret('tokens', JSON.stringify(tokens));
   }
 
+  async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
+    // Without persistence, the SDK's second `auth()` call (the token-exchange
+    // pass in authorizeServer) re-runs RFC 9728 / RFC 8414 discovery, which
+    // can return stale or incomplete metadata and silently drop the token
+    // exchange. Cache the full state so the second pass reuses the exact
+    // endpoints from the first pass.
+    await this.writeSecret('discovery', JSON.stringify(state));
+  }
+
+  async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    const raw = await this.readSecret('discovery');
+    if (!raw) return undefined;
+    return JSON.parse(raw) as OAuthDiscoveryState;
+  }
+
   async saveCodeVerifier(codeVerifier: string): Promise<void> {
     await this.writeSecret('code-verifier', codeVerifier);
   }
@@ -208,6 +230,7 @@ export class TrellisOAuthProvider implements OAuthClientProvider {
         'Authorization URL is missing `state` — refusing to start flow without CSRF protection',
       );
     }
+    this.pendingState = stateParam;
     // Kick the bridge call off; the caller awaits via waitForAuthorizationCode().
     this.pendingCallback = bridgeFetch('/oauth/start-flow', {
       method: 'POST',
@@ -240,11 +263,33 @@ export class TrellisOAuthProvider implements OAuthClientProvider {
     }
   }
 
+  /**
+   * Inform the bridge that the code-for-token exchange finished so the
+   * browser's "Completing authorization…" page can flip to the final state.
+   * Swallows bridge errors — this is best-effort UX polish, not a hard
+   * failure path.
+   */
+  async reportExchangeResult(result: ExchangeResult, message?: string): Promise<void> {
+    const stateParam = this.pendingState;
+    this.pendingState = null;
+    if (!stateParam) return;
+    try {
+      await bridgeFetch('/oauth/exchange-complete', {
+        method: 'POST',
+        body: JSON.stringify({ state: stateParam, result, message: message ?? null }),
+      });
+    } catch (err) {
+      console.warn(
+        `[trellis] Failed to notify OAuth bridge of exchange result for "${this.serverName}":`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
-    // Map SDK scopes to our persisted kinds. We don't persist discovery
-    // state yet (no saveDiscoveryState implementation), so 'discovery' is
-    // a no-op. 'all' deletes every per-server key via the bridge shortcut
-    // so PR B's "Sign out" is one call.
+    // Map SDK scopes to our persisted kinds. 'all' deletes every per-server
+    // key via the bridge shortcut so "Sign out" (and the SDK's repeated-
+    // failure recovery path) is one call.
     if (scope === 'all') {
       // Pre-registered client_id lives in config, not in our store — the
       // DELETE /all endpoint only wipes persisted material, so the pinned
@@ -252,9 +297,14 @@ export class TrellisOAuthProvider implements OAuthClientProvider {
       await bridgeFetch(`/mcp-oauth/${encodeURIComponent(this.serverName)}/all`, { method: 'DELETE' });
       return;
     }
-    if (scope === 'discovery') return;
     const kind: SecretKind =
-      scope === 'client' ? 'client-info' : scope === 'tokens' ? 'tokens' : 'code-verifier';
+      scope === 'client'
+        ? 'client-info'
+        : scope === 'tokens'
+          ? 'tokens'
+          : scope === 'discovery'
+            ? 'discovery'
+            : 'code-verifier';
     if (kind === 'client-info' && this.options.clientId) return; // see saveClientInformation note
     await this.deleteSecret(kind);
   }

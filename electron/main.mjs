@@ -22,7 +22,7 @@ const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
 // safeStorage keys are flat strings; OAuth material is namespaced under
 // `mcp:<server>:<kind>` so it shares the keys.json blob without colliding
 // with LLM provider keys.
-const MCP_OAUTH_KINDS = ['tokens', 'client-info', 'code-verifier'];
+const MCP_OAUTH_KINDS = ['tokens', 'client-info', 'code-verifier', 'discovery'];
 let mainWindow = null;
 
 // ── API Key Storage (safeStorage + on-disk persistence) ────────
@@ -120,62 +120,170 @@ function deleteEncrypted(name) {
   return existed;
 }
 
-// One-shot localhost listener: awaits a single /callback hit, validates
-// state against what we issued, shuts down. Browser-facing listener so
-// it must NOT require the bridge secret — it validates via PKCE state.
+// Shared status map so the bridge endpoint (on a different port) can flip
+// a flow's browser page from "Completing authorization…" to success/failed
+// without coupling to the callback server. Keyed by the PKCE `state` value
+// the backend issued.
+const oauthFlowStatus = new Map();
+
+function setOAuthFlowStatus(state, status, message) {
+  if (typeof state !== 'string' || state.length === 0) return;
+  oauthFlowStatus.set(state, { status, message: message ?? null, ts: Date.now() });
+}
+
+// Browser-facing listener. The callback arrives with code+state; we
+// validate, respond with a "Completing authorization…" page that polls
+// `/callback-status`, and resolve the promise with the captured code so
+// the backend can run the token exchange. The server stays alive long
+// enough for the polling page to see the final status, then shuts down.
+// Browser-facing so it must NOT require the bridge secret — the PKCE
+// state check is the CSRF defense here.
 function awaitOAuthCallback(expectedState) {
   return new Promise((resolve, reject) => {
-    let settled = false;
+    let codeSettled = false;
+    let shuttingDown = false;
+    let shutdownTimer = null;
+
     const server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`);
+
+      if (url.pathname === '/callback-status') {
+        const state = url.searchParams.get('state');
+        // Reject a missing/mismatched state outright — the page only ever
+        // polls with the state it was rendered with.
+        if (state !== expectedState) {
+          sendJson(res, 400, { status: 'failed', message: 'Invalid state parameter.' });
+          return;
+        }
+        const entry = oauthFlowStatus.get(state) ?? { status: 'pending', message: null };
+        sendJson(res, 200, { status: entry.status, message: entry.message });
+        if (entry.status !== 'pending') scheduleShutdown(3000);
+        return;
+      }
+
       if (url.pathname !== '/callback') {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not found');
         return;
       }
+
       const code = url.searchParams.get('code');
       const state = url.searchParams.get('state');
       const error = url.searchParams.get('error');
       const description = url.searchParams.get('error_description');
 
       if (error) {
-        respondHtml(res, 400, `Authorization failed: ${error}${description ? ` — ${description}` : ''}`);
-        finish(new Error(`OAuth error from server: ${error}${description ? ` — ${description}` : ''}`));
+        const msg = `${error}${description ? ` — ${description}` : ''}`;
+        setOAuthFlowStatus(expectedState, 'failed', msg);
+        respondCompletingHtml(res, expectedState, 400);
+        finishCode(new Error(`OAuth error from server: ${msg}`));
         return;
       }
       if (!code) {
-        respondHtml(res, 400, 'Missing ?code in callback.');
-        finish(new Error('OAuth callback missing code parameter'));
+        setOAuthFlowStatus(expectedState, 'failed', 'Missing authorization code.');
+        respondCompletingHtml(res, expectedState, 400);
+        finishCode(new Error('OAuth callback missing code parameter'));
         return;
       }
       if (state !== expectedState) {
         // Mismatched state → someone else's callback, or a replay. Reject
         // without exposing what we expected.
         respondHtml(res, 400, 'Invalid state parameter.');
-        finish(new Error('OAuth callback state mismatch'));
+        finishCode(new Error('OAuth callback state mismatch'));
         return;
       }
 
-      respondHtml(res, 200, 'Authorization complete — you can close this window.');
-      finish(null, { code, state });
+      // Code looks good — stage the "pending" page and hand the code back
+      // so the caller can run the exchange. We do NOT write success HTML
+      // yet; the poll page flips only once the backend reports success.
+      if (!oauthFlowStatus.has(expectedState)) {
+        setOAuthFlowStatus(expectedState, 'pending');
+      }
+      respondCompletingHtml(res, expectedState, 200);
+      finishCode(null, { code, state });
     });
 
-    server.on('error', (err) => finish(err));
+    server.on('error', (err) => finishCode(err));
     server.listen(OAUTH_CALLBACK_PORT, '127.0.0.1');
 
-    const timer = setTimeout(() => {
-      finish(new Error(`OAuth flow timed out after ${OAUTH_FLOW_TIMEOUT_MS / 1000}s`));
+    const overallTimer = setTimeout(() => {
+      finishCode(new Error(`OAuth flow timed out after ${OAUTH_FLOW_TIMEOUT_MS / 1000}s`));
     }, OAUTH_FLOW_TIMEOUT_MS);
 
-    function finish(err, value) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try { server.close(); } catch { /* ignore */ }
-      if (err) reject(err);
-      else resolve(value);
+    function finishCode(err, value) {
+      if (codeSettled) return;
+      codeSettled = true;
+      clearTimeout(overallTimer);
+      if (err) {
+        // Ensure the browser page (if it rendered at all) sees the failure
+        // on its next poll, then tear the server down shortly after.
+        setOAuthFlowStatus(expectedState, 'failed', err instanceof Error ? err.message : String(err));
+        scheduleShutdown(3000);
+        reject(err);
+        return;
+      }
+      // Success path: resolve the code immediately, but keep the server
+      // up so the browser page can poll for the exchange outcome. Cap
+      // that wait at OAUTH_FLOW_TIMEOUT_MS in case the backend never
+      // reports back.
+      scheduleShutdown(OAUTH_FLOW_TIMEOUT_MS);
+      resolve(value);
+    }
+
+    function scheduleShutdown(ms) {
+      if (shuttingDown) return;
+      if (shutdownTimer) clearTimeout(shutdownTimer);
+      shutdownTimer = setTimeout(() => {
+        shuttingDown = true;
+        try { server.close(); } catch { /* ignore */ }
+        // Hold onto the status for a few more seconds in case a late poll
+        // lands after we've shut the server, then drop it.
+        setTimeout(() => oauthFlowStatus.delete(expectedState), 5000);
+      }, ms);
     }
   });
+}
+
+// HTML shown on /callback once the state + code check out. It polls
+// /callback-status and swaps to a success or failure message once the
+// backend-side token exchange finishes. Writing the final status only
+// from the polling result prevents "Authorization complete" from showing
+// when saveTokens never actually ran.
+function respondCompletingHtml(res, stateValue, status) {
+  res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+  const stateJson = JSON.stringify(stateValue);
+  res.end(`<!doctype html>
+<html>
+  <body style="font-family:system-ui;padding:2rem">
+    <p id="msg">Completing authorization…</p>
+    <script>
+      (function () {
+        var state = ${stateJson};
+        var msg = document.getElementById('msg');
+        var done = false;
+        function poll() {
+          if (done) return;
+          fetch('/callback-status?state=' + encodeURIComponent(state))
+            .then(function (r) { return r.json().catch(function () { return { status: 'failed', message: 'Bad response' }; }); })
+            .then(function (body) {
+              if (!body || body.status === 'pending') {
+                setTimeout(poll, 500);
+                return;
+              }
+              done = true;
+              if (body.status === 'success') {
+                msg.textContent = 'Authorization complete — you can close this window.';
+              } else {
+                msg.textContent = 'Authorization failed' + (body.message ? ': ' + body.message : '.');
+              }
+            })
+            .catch(function () { setTimeout(poll, 1000); });
+        }
+        poll();
+      })();
+    </script>
+  </body>
+</html>`);
 }
 
 function respondHtml(res, status, message) {
@@ -213,7 +321,9 @@ function sendJson(res, status, body) {
 // server URL always matches `/mcp-oauth/:server/:kind` — server name is
 // `[A-Za-z0-9_-]+` per routes.ts validation, so a simple split is safe.
 function parseSecretPath(pathname) {
-  const m = pathname.match(/^\/mcp-oauth\/([A-Za-z0-9_-]+)\/(tokens|client-info|code-verifier|all)$/);
+  const m = pathname.match(
+    /^\/mcp-oauth\/([A-Za-z0-9_-]+)\/(tokens|client-info|code-verifier|discovery|all)$/,
+  );
   if (!m) return null;
   return { serverName: m[1], kind: m[2] };
 }
@@ -234,6 +344,20 @@ async function handleBridgeRequest(secret, req, res) {
   }
 
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+
+  if (url.pathname === '/oauth/exchange-complete' && req.method === 'POST') {
+    let body;
+    try { body = await readJsonBody(req); }
+    catch (err) { sendJson(res, 400, { error: `Invalid request body: ${err.message}` }); return; }
+    const { state, result, message } = body ?? {};
+    if (typeof state !== 'string' || (result !== 'success' && result !== 'failed')) {
+      sendJson(res, 400, { error: 'state (string) and result ("success"|"failed") are required' });
+      return;
+    }
+    setOAuthFlowStatus(state, result, typeof message === 'string' ? message : null);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
 
   if (url.pathname === '/oauth/start-flow' && req.method === 'POST') {
     let body;

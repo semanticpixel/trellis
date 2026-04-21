@@ -18,6 +18,7 @@ import {
   useClaudeCodeCandidates,
   useImportMcpServers,
   type McpServerInfo,
+  isMcpTransport,
   type McpServerConfigInput,
   type McpTransport,
 } from '../../hooks/useWorkspaces';
@@ -752,7 +753,9 @@ function McpServerForm({ server, onDone }: { server?: McpServerInfo; onDone: () 
         <select
           className={styles.select}
           value={transport}
-          onChange={(e) => setTransport(e.target.value as McpTransport)}
+          onChange={(e) => {
+            if (isMcpTransport(e.target.value)) setTransport(e.target.value);
+          }}
         >
           <option value="stdio">stdio (local command)</option>
           <option value="http">http (Streamable HTTP)</option>

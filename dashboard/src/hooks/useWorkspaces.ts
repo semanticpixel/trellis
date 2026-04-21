@@ -313,7 +313,12 @@ export function useAdapters() {
 
 // ── MCP Servers ─────────────────────────────────────────────
 
-export type McpTransport = 'stdio' | 'http' | 'sse';
+export const MCP_TRANSPORTS = ['stdio', 'http', 'sse'] as const;
+export type McpTransport = (typeof MCP_TRANSPORTS)[number];
+
+export function isMcpTransport(value: string): value is McpTransport {
+  return MCP_TRANSPORTS.some((t) => t === value);
+}
 
 export interface McpServerInfo {
   name: string;

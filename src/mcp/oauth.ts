@@ -23,6 +23,17 @@ type SecretKind = (typeof SECRET_KINDS)[number];
 
 export type ExchangeResult = 'success' | 'failed';
 
+/**
+ * Sentinel message thrown by `redirectToAuthorization()` when the provider
+ * is in quiet mode. Session-init uses quiet providers so that a cold start
+ * with no persisted tokens doesn't open a browser tab — the SDK's 401 path
+ * triggers redirectToAuthorization(), which throws this, and `startServer`
+ * catches it to land the server in a benign "needs authorization" state.
+ * Exported as a named const so call sites can match exactly without
+ * substring brittleness.
+ */
+export const TRELLIS_OAUTH_REQUIRED = 'TRELLIS_OAUTH_REQUIRED';
+
 const BRIDGE_FILE = join(homedir(), '.trellis', 'oauth-bridge.json');
 const BRIDGE_TIMEOUT_MS = 5000;
 const HEADER = 'X-Trellis-OAuth-Secret';
@@ -107,6 +118,13 @@ export interface TrellisOAuthProviderOptions {
   clientSecret?: string;
   /** Optional scope string requested during authorization. */
   scope?: string;
+  /**
+   * When true, `redirectToAuthorization()` throws the `TRELLIS_OAUTH_REQUIRED`
+   * sentinel instead of opening a browser tab. Used for transports built
+   * during session-init so a cascade of unauthorized HTTP servers can't
+   * race to open N browser tabs and collide on the callback port.
+   */
+  quiet?: boolean;
 }
 
 /**
@@ -222,6 +240,13 @@ export class TrellisOAuthProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
+    // Quiet mode: refuse to open a browser tab. The SDK calls this when a
+    // transport hits a 401 without cached tokens; session-init builds
+    // providers in quiet mode so that N unauthorized servers can't race
+    // N browser tabs (and collide on the single callback port).
+    if (this.options.quiet) {
+      throw new Error(TRELLIS_OAUTH_REQUIRED);
+    }
     // The authorization URL carries the `state` we issued via state(), so
     // the bridge can validate the callback without additional state.
     const stateParam = authorizationUrl.searchParams.get('state');

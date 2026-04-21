@@ -816,6 +816,34 @@ export function createRoutes(ctx: ServerContext): Router {
     }
   });
 
+  // Manual trigger for the OAuth authorization flow on http/sse servers.
+  // PR B's Settings UI will surface this as an "Authorize" button; until
+  // then, call it directly with `curl -X POST .../authorize?workspace_id=…`
+  // to exercise the full flow end-to-end.
+  router.post('/mcp/servers/:name/authorize', async (req, res) => {
+    const name = req.params.name;
+    const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;
+    if (!workspaceId) {
+      res.status(400).json({ error: 'workspace_id is required' });
+      return;
+    }
+    const ws = store.getWorkspace(workspaceId);
+    if (!ws) {
+      res.status(404).json({ error: 'Workspace not found' });
+      return;
+    }
+    try {
+      const status = await mcpManager.authorizeServer(workspaceId, ws.path, name);
+      if (!status) {
+        res.status(404).json({ error: 'Server not found in merged config for workspace' });
+        return;
+      }
+      res.json(status);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'OAuth authorization failed' });
+    }
+  });
+
   // Reload every server for a workspace — matches the UI "Reload all" button.
   router.post('/mcp/reload-all', async (req, res) => {
     const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;

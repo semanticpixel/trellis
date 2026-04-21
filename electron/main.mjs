@@ -1,8 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, shell } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
+import { createServer } from 'http';
+import { randomBytes, timingSafeEqual } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,7 +15,14 @@ app.name = 'Trellis';
 const SERVER_PORT = 3457;
 const DATA_DIR = join(homedir(), '.trellis');
 const KEYS_FILE = join(DATA_DIR, 'keys.json');
+const BRIDGE_FILE = join(DATA_DIR, 'oauth-bridge.json');
 const KNOWN_PROVIDER_TYPES = new Set(['anthropic', 'openai', 'custom']);
+const OAUTH_CALLBACK_PORT = Number(process.env.TRELLIS_OAUTH_CALLBACK_PORT ?? 33418);
+const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
+// safeStorage keys are flat strings; OAuth material is namespaced under
+// `mcp:<server>:<kind>` so it shares the keys.json blob without colliding
+// with LLM provider keys.
+const MCP_OAUTH_KINDS = ['tokens', 'client-info', 'code-verifier'];
 let mainWindow = null;
 
 // ── API Key Storage (safeStorage + on-disk persistence) ────────
@@ -77,6 +86,272 @@ ipcMain.handle('keys:delete', (_event, name) => {
 ipcMain.handle('keys:has', (_event, name) => {
   return keyStore.has(name);
 });
+
+// ── OAuth Bridge (backend → main) ──────────────────────────────
+
+// The tsx-subprocess backend can't touch safeStorage or shell.openExternal,
+// so main exposes a tiny 127.0.0.1 HTTP listener and writes its port + a
+// rotating shared secret into ~/.trellis/oauth-bridge.json (chmod 0600).
+// The backend reads that file and calls the listener with the secret in
+// a header. Everything stays on loopback, and stolen secrets don't
+// survive a restart.
+
+function mcpKey(serverName, kind) {
+  return `mcp:${serverName}:${kind}`;
+}
+
+function storeEncrypted(name, plaintext) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Encryption not available on this platform');
+  }
+  keyStore.set(name, safeStorage.encryptString(plaintext));
+  persistKeysToDisk();
+}
+
+function readEncrypted(name) {
+  const buf = keyStore.get(name);
+  if (!buf) return null;
+  return safeStorage.decryptString(buf);
+}
+
+function deleteEncrypted(name) {
+  const existed = keyStore.delete(name);
+  if (existed) persistKeysToDisk();
+  return existed;
+}
+
+// One-shot localhost listener: awaits a single /callback hit, validates
+// state against what we issued, shuts down. Browser-facing listener so
+// it must NOT require the bridge secret — it validates via PKCE state.
+function awaitOAuthCallback(expectedState) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const server = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`);
+      if (url.pathname !== '/callback') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not found');
+        return;
+      }
+      const code = url.searchParams.get('code');
+      const state = url.searchParams.get('state');
+      const error = url.searchParams.get('error');
+      const description = url.searchParams.get('error_description');
+
+      if (error) {
+        respondHtml(res, 400, `Authorization failed: ${error}${description ? ` — ${description}` : ''}`);
+        finish(new Error(`OAuth error from server: ${error}${description ? ` — ${description}` : ''}`));
+        return;
+      }
+      if (!code) {
+        respondHtml(res, 400, 'Missing ?code in callback.');
+        finish(new Error('OAuth callback missing code parameter'));
+        return;
+      }
+      if (state !== expectedState) {
+        // Mismatched state → someone else's callback, or a replay. Reject
+        // without exposing what we expected.
+        respondHtml(res, 400, 'Invalid state parameter.');
+        finish(new Error('OAuth callback state mismatch'));
+        return;
+      }
+
+      respondHtml(res, 200, 'Authorization complete — you can close this window.');
+      finish(null, { code, state });
+    });
+
+    server.on('error', (err) => finish(err));
+    server.listen(OAUTH_CALLBACK_PORT, '127.0.0.1');
+
+    const timer = setTimeout(() => {
+      finish(new Error(`OAuth flow timed out after ${OAUTH_FLOW_TIMEOUT_MS / 1000}s`));
+    }, OAUTH_FLOW_TIMEOUT_MS);
+
+    function finish(err, value) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { server.close(); } catch { /* ignore */ }
+      if (err) reject(err);
+      else resolve(value);
+    }
+  });
+}
+
+function respondHtml(res, status, message) {
+  res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`<!doctype html><html><body style="font-family:system-ui;padding:2rem"><p>${message}</p></body></html>`);
+}
+
+function readJsonBody(req, limitBytes = 64 * 1024) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limitBytes) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (chunks.length === 0) return resolve({});
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); }
+      catch (err) { reject(err); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+// server URL always matches `/mcp-oauth/:server/:kind` — server name is
+// `[A-Za-z0-9_-]+` per routes.ts validation, so a simple split is safe.
+function parseSecretPath(pathname) {
+  const m = pathname.match(/^\/mcp-oauth\/([A-Za-z0-9_-]+)\/(tokens|client-info|code-verifier|all)$/);
+  if (!m) return null;
+  return { serverName: m[1], kind: m[2] };
+}
+
+function timingSafeEqualStr(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+async function handleBridgeRequest(secret, req, res) {
+  const headerSecret = req.headers['x-trellis-oauth-secret'];
+  if (!timingSafeEqualStr(Array.isArray(headerSecret) ? headerSecret[0] : headerSecret ?? '', secret)) {
+    sendJson(res, 401, { error: 'Invalid or missing bridge secret' });
+    return;
+  }
+
+  const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+
+  if (url.pathname === '/oauth/start-flow' && req.method === 'POST') {
+    let body;
+    try { body = await readJsonBody(req); }
+    catch (err) { sendJson(res, 400, { error: `Invalid request body: ${err.message}` }); return; }
+
+    const { authorizationUrl, expectedState } = body ?? {};
+    if (typeof authorizationUrl !== 'string' || typeof expectedState !== 'string') {
+      sendJson(res, 400, { error: 'authorizationUrl and expectedState are required strings' });
+      return;
+    }
+
+    // Start listener before opening the browser so we never lose the callback
+    // to a fast redirect.
+    const callbackPromise = awaitOAuthCallback(expectedState);
+    try {
+      await shell.openExternal(authorizationUrl);
+    } catch (err) {
+      // Still await — the user may paste the URL manually. But surface the
+      // failure so the caller can decide to abort.
+      console.warn('[trellis] shell.openExternal failed:', err?.message ?? err);
+    }
+    try {
+      const result = await callbackPromise;
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
+
+  const parsed = parseSecretPath(url.pathname);
+  if (!parsed) {
+    sendJson(res, 404, { error: 'Not found' });
+    return;
+  }
+  const { serverName, kind } = parsed;
+
+  if (kind === 'all') {
+    if (req.method !== 'DELETE') {
+      sendJson(res, 405, { error: 'Method not allowed' });
+      return;
+    }
+    for (const k of MCP_OAUTH_KINDS) deleteEncrypted(mcpKey(serverName, k));
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === 'GET') {
+    const value = readEncrypted(mcpKey(serverName, kind));
+    if (value == null) { sendJson(res, 200, { value: null }); return; }
+    sendJson(res, 200, { value });
+    return;
+  }
+
+  if (req.method === 'PUT') {
+    let body;
+    try { body = await readJsonBody(req); }
+    catch (err) { sendJson(res, 400, { error: `Invalid request body: ${err.message}` }); return; }
+    const { value } = body ?? {};
+    if (typeof value !== 'string') {
+      sendJson(res, 400, { error: 'value must be a string' });
+      return;
+    }
+    try { storeEncrypted(mcpKey(serverName, kind), value); }
+    catch (err) { sendJson(res, 500, { error: err instanceof Error ? err.message : 'store failed' }); return; }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    deleteEncrypted(mcpKey(serverName, kind));
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  sendJson(res, 405, { error: 'Method not allowed' });
+}
+
+function startOAuthBridge() {
+  // Rotating secret: 32 random bytes, regenerated every main startup so a
+  // leaked bridge file from a previous session can't be replayed.
+  const secret = randomBytes(32).toString('base64url');
+
+  const server = createServer((req, res) => {
+    handleBridgeRequest(secret, req, res).catch((err) => {
+      console.error('[trellis] OAuth bridge error:', err);
+      try { sendJson(res, 500, { error: 'Internal bridge error' }); }
+      catch { /* ignore */ }
+    });
+  });
+
+  return new Promise((resolve, reject) => {
+    server.on('error', reject);
+    // `listen(0, '127.0.0.1')` picks a free ephemeral port. After listen
+    // resolves, `.address().port` is the actual port for the bridge file.
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      if (!addr || typeof addr !== 'object') {
+        reject(new Error('Bridge listener did not return an address'));
+        return;
+      }
+      try {
+        mkdirSync(DATA_DIR, { recursive: true });
+        writeFileSync(
+          BRIDGE_FILE,
+          JSON.stringify({ bridgePort: addr.port, bridgeSecret: secret, callbackPort: OAUTH_CALLBACK_PORT }, null, 2),
+          { mode: 0o600 },
+        );
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      console.log(`[trellis] OAuth bridge listening on 127.0.0.1:${addr.port}`);
+      resolve(server);
+    });
+  });
+}
 
 // ── Adapter Bootstrap ──────────────────────────────────────────
 
@@ -283,11 +558,23 @@ app.whenReady().then(() => {
     app.dock?.setIcon(join(iconDir(), 'icon-1024.png'));
   }
   createWindow();
+  // Start the OAuth bridge before the backend learns about it — backend
+  // reads oauth-bridge.json lazily on the first OAuth call.
+  startOAuthBridge().catch((err) => {
+    console.error('[trellis] OAuth bridge failed to start:', err);
+  });
   // Re-register any adapters whose keys were persisted from a previous run.
   // Fire-and-forget: the window loads independently while this runs.
   registerPersistedAdapters().catch((err) => {
     console.error('[trellis] Adapter restore failed:', err);
   });
+});
+
+app.on('will-quit', () => {
+  // Remove the bridge file on quit so a stale (port, secret) pair from a
+  // previous run can never be picked up — the next startup writes a fresh one.
+  try { if (existsSync(BRIDGE_FILE)) unlinkSync(BRIDGE_FILE); }
+  catch (err) { console.warn('[trellis] Could not remove bridge file:', err?.message ?? err); }
 });
 
 app.on('window-all-closed', () => {

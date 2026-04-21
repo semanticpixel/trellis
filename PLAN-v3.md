@@ -22,7 +22,7 @@ Every item below follows this structure. When adding new items, match the shape 
 ### Priority tiers
 
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries).
-- **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP — stdio DONE, HTTP/SSE in item 50), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen), 50 (HTTP/SSE MCP transport).
+- **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP — stdio DONE, HTTP/SSE in item 50, OAuth in item 51), 7 (plan mode), 10 (@-mentions), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), 34 (image paste), 35 (commit message gen), 50 (HTTP/SSE MCP transport — DONE), 51 (OAuth for HTTP MCP).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference — DONE), 38 (group tool calls).
 - **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard).
 
@@ -1425,6 +1425,88 @@ if (meta && e.key === 'k' && !e.shiftKey) {
 - Dynamic token refresh (assume static bearer tokens for now)
 - Header value secret-prompting UI (env var interpolation is enough for v1)
 - Permissions gating (item 8) — MCP tools still auto-execute regardless of transport
+
+### 51. OAuth 2.0 client for HTTP MCP servers (auth follow-up to item 50)
+
+**Symptom:** After item 50 shipped, calling tools on hosted HTTP MCP servers (Sourcegraph, Glean, Context7, Coda, Statsig, Sumologic, Contentful) fails with:
+```
+Streamable HTTP error: Error POSTing to endpoint: {"statusCode":401,"statusMessage":"Unauthorized","message":"Unauthorized"}
+```
+The same servers work in Claude Code with no explicit auth in `.claude.json` — entries are bare `{type: "http", url: "..."}`.
+
+**Cause:** These servers require **OAuth 2.0** (typically the Authorization Code with PKCE flow), not static bearer tokens. The MCP spec defines an authorization handshake: server returns 401 with `WWW-Authenticate: Bearer realm="...", authorization_uri="..."` headers, client initiates an OAuth flow, exchanges authorization code for access token, retries the request with `Authorization: Bearer <token>`. Subsequent requests reuse the cached token; refresh tokens handle expiry.
+
+The official `@modelcontextprotocol/sdk`'s `StreamableHTTPClientTransport` and `SSEClientTransport` both accept an `authProvider` option implementing the `OAuthClientProvider` interface. Trellis instantiates the transports without an `authProvider`, so the SDK has no way to handle 401s — it surfaces them verbatim.
+
+Claude Code implements its own `OAuthClientProvider` that:
+1. Opens the system browser to the authorization URL
+2. Spins up a temporary local HTTP listener (e.g. `http://localhost:33418/oauth/callback`)
+3. Captures the redirect with the authorization code
+4. Exchanges code for tokens via the token endpoint
+5. Persists tokens via OS keychain
+6. Implements refresh-token logic for expiry
+
+**Fix — implement an `OAuthClientProvider` for Trellis:**
+
+1. **New module** `src/mcp/oauth.ts` exporting a `TrellisOAuthProvider` class that implements `OAuthClientProvider`:
+   - `redirectUrl()` returns a localhost callback URL on a fixed-or-random free port
+   - `clientMetadata()` returns Trellis's client name + redirect URI for dynamic client registration
+   - `clientInformation()` reads persisted client_id/client_secret from disk, or returns undefined to trigger registration
+   - `saveClientInformation(info)` persists client info per-server
+   - `tokens()` reads persisted access/refresh tokens
+   - `saveTokens(tokens)` persists tokens via OS keychain (reuse the safeStorage IPC pattern from item 22)
+   - `redirectToAuthorization(url)` triggers the browser-open + localhost listener flow
+   - `codeVerifier()` / `saveCodeVerifier(verifier)` for PKCE state
+
+2. **Browser-open + callback listener** in `electron/main.mjs` (must run in main process for `shell.openExternal` access):
+   - IPC channel `oauth:start-flow` accepts `{ authorizationUrl, redirectPort }`, opens the system browser, spins up a one-shot HTTP server on `redirectPort` listening for the callback, resolves with the captured `code` (and `state` for CSRF check)
+   - 5-minute timeout — fail the flow if user doesn't complete
+   - Backend's `TrellisOAuthProvider.redirectToAuthorization()` calls this IPC and awaits the code
+
+3. **Token storage** — extend the existing `keys:store/retrieve/delete` IPC to namespace per server (e.g. `mcp:<server-name>:access_token`, `mcp:<server-name>:refresh_token`, `mcp:<server-name>:client_info`). All values still encrypted via `safeStorage`.
+
+4. **Wire into transports** in `MCPManager.spawnServer()`:
+   ```ts
+   if (cfg.type === 'http' || cfg.type === 'sse') {
+     const authProvider = new TrellisOAuthProvider(serverName);
+     const transport = cfg.type === 'http'
+       ? new StreamableHTTPClientTransport(new URL(cfg.url), { authProvider })
+       : new SSEClientTransport(new URL(cfg.url), { authProvider });
+   }
+   ```
+   The SDK handles the rest — it'll call `authProvider.tokens()` first, fall back to the auth flow on 401, and retry transparently.
+
+5. **Settings UI** (`SettingsOverlay.tsx`) per HTTP server:
+   - Status pill: "Authorized" / "Not authorized" / "Reauthorizing..."
+   - "Authorize" button when not connected — triggers the OAuth flow on demand (otherwise it triggers lazily on first tool call)
+   - "Sign out" button — clears tokens for that server, forces re-auth on next request
+
+6. **Refresh handling**: the SDK calls `tokens()` before each request and calls `saveTokens()` after a refresh. If the refresh-token flow itself returns 401, the provider should clear stored tokens and trigger a fresh OAuth flow.
+
+**Files to touch:**
+- `src/mcp/oauth.ts` (new) — TrellisOAuthProvider implementation
+- `src/mcp/manager.ts` — instantiate authProvider, pass to HTTP/SSE transports
+- `electron/main.mjs` — `oauth:start-flow` IPC handler, browser open + localhost callback listener
+- `electron/preload.cjs` — expose `oauth:start-flow` to renderer (for settings UI testing)
+- `dashboard/src/components/settings/SettingsOverlay.tsx` — auth status + Authorize/Sign-out per server
+- `dashboard/src/hooks/useWorkspaces.ts` — types for auth status payloads
+- `src/shared/types.ts` — auth status shape
+
+**Acceptance:**
+- Click "Authorize" on a Glean server → browser opens to Glean's OAuth page → after granting access, the redirect lands on Trellis's localhost listener and the status flips to "Authorized" without the user touching anything else.
+- Calling a tool on that Glean server (e.g. `mcp__glean__search`) succeeds.
+- Quit and relaunch Trellis — tokens persist, no re-auth needed.
+- After token expiry, the refresh-token flow runs transparently. User notices nothing.
+
+**Out of scope:**
+- Importing OAuth tokens from Claude Code's storage as a shortcut (Claude Code stores them in `~/.claude/oauth/` or similar; deciphering its format is brittle and Claude Code can change it. Stick with first-time browser auth in Trellis — it's a one-time tax per server.)
+- Servers that require non-OAuth flows (mTLS, API key in a custom header, SAML, etc.) — handle case-by-case via the existing static-headers mechanism from item 50.
+- Multi-account support per server — assume one identity per Trellis user per server for v1.
+
+**Risk callouts:**
+- **Browser callback security**: the localhost listener should validate `state` parameter against PKCE state, only accept exactly one callback, then shut down. Otherwise other localhost processes could spoof callbacks.
+- **Port collision**: random free port via `net.createServer().listen(0)` then `address().port` — register dynamic redirect URI with the OAuth client metadata.
+- **MCP spec evolution**: the OAuth spec for MCP is relatively young and evolving. Pin the SDK version once this works.
 
 ---
 

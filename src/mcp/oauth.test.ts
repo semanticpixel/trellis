@@ -8,7 +8,7 @@ vi.mock('fs', async () => {
 });
 
 import { readFileSync } from 'fs';
-import { TrellisOAuthProvider } from './oauth.js';
+import { TrellisOAuthProvider, TRELLIS_OAUTH_REQUIRED } from './oauth.js';
 
 const BRIDGE = { bridgePort: 55555, bridgeSecret: 'test-secret', callbackPort: 33418 };
 const mockedReadFileSync = vi.mocked(readFileSync);
@@ -295,5 +295,35 @@ describe('TrellisOAuthProvider', () => {
     const provider = new TrellisOAuthProvider('glean');
     const authUrl = new URL('https://auth.example/authorize?client_id=x');
     await expect(provider.redirectToAuthorization(authUrl)).rejects.toThrow(/missing `state`/);
+  });
+
+  it('quiet mode throws TRELLIS_OAUTH_REQUIRED and never posts to /oauth/start-flow', async () => {
+    // Session-init builds providers in quiet mode. The SDK's 401 recovery
+    // path calls redirectToAuthorization; quiet mode must refuse, so
+    // unauthorized servers land in a benign "needs authorization" state
+    // instead of each opening its own browser tab (and racing on port 33418).
+    const fetchMock = stubFetch(() => {
+      throw new Error('fetch should not be called in quiet mode');
+    });
+    const provider = new TrellisOAuthProvider('glean', { quiet: true });
+    const authUrl = new URL('https://auth.example/authorize?state=s&client_id=x');
+    await expect(provider.redirectToAuthorization(authUrl)).rejects.toThrow(
+      TRELLIS_OAUTH_REQUIRED,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('quiet mode still permits token/client reads via the bridge', async () => {
+    // Only redirectToAuthorization is suppressed. Transports still need to
+    // read persisted tokens and (pre-registered) client info via the
+    // bridge so an already-authorized server reconnects cleanly.
+    const tokens = { access_token: 'cached-token', token_type: 'Bearer', expires_in: 3600 };
+    const fetchMock = stubFetch((url) => {
+      expect(url).toBe('http://127.0.0.1:55555/mcp-oauth/glean/tokens');
+      return jsonResponse(200, { value: JSON.stringify(tokens) });
+    });
+    const provider = new TrellisOAuthProvider('glean', { quiet: true });
+    await expect(provider.tokens()).resolves.toEqual(tokens);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

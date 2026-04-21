@@ -19,6 +19,12 @@ const BRIDGE_FILE = join(DATA_DIR, 'oauth-bridge.json');
 const KNOWN_PROVIDER_TYPES = new Set(['anthropic', 'openai', 'custom']);
 const OAUTH_CALLBACK_PORT = Number(process.env.TRELLIS_OAUTH_CALLBACK_PORT ?? 33418);
 const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
+// Safety-net shutdown after the authorization callback lands successfully.
+// The /callback-status poll already schedules a 3s shutdown once the
+// exchange result posts, so this only fires if the backend never calls
+// /oauth/exchange-complete. Short enough that a second Authorize click
+// within a minute can always rebind the callback port.
+const OAUTH_SUCCESS_SHUTDOWN_MS = 30 * 1000;
 // safeStorage keys are flat strings; OAuth material is namespaced under
 // `mcp:<server>:<kind>` so it shares the keys.json blob without colliding
 // with LLM provider keys.
@@ -223,10 +229,12 @@ function awaitOAuthCallback(expectedState) {
         return;
       }
       // Success path: resolve the code immediately, but keep the server
-      // up so the browser page can poll for the exchange outcome. Cap
-      // that wait at OAUTH_FLOW_TIMEOUT_MS in case the backend never
-      // reports back.
-      scheduleShutdown(OAUTH_FLOW_TIMEOUT_MS);
+      // up briefly so the browser page can poll for the exchange outcome.
+      // The exchange-complete POST from the backend flips the poll status
+      // and triggers a 3s shutdown via the /callback-status handler; this
+      // 30s timer is only the safety net for when that POST never lands.
+      // Kept short so the callback port rebinds quickly for the next flow.
+      scheduleShutdown(OAUTH_SUCCESS_SHUTDOWN_MS);
       resolve(value);
     }
 

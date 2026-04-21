@@ -12,7 +12,7 @@ import {
   type MCPTransportType,
   type MergedMCPServer,
 } from './config.js';
-import { TrellisOAuthProvider } from './oauth.js';
+import { TrellisOAuthProvider, TRELLIS_OAUTH_REQUIRED } from './oauth.js';
 
 const STDERR_RING_SIZE = 200;
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -42,9 +42,18 @@ interface ServerInstance {
   error: string | null;
   pid: number | null;
   stderrTail: string[];
-  // Reused across transport restarts so persisted tokens + pre-registered
-  // client_id stay consistent for the server's lifetime.
+  // Quiet auth provider wired into the transport. When the SDK hits a 401
+  // and tries to call `redirectToAuthorization`, the quiet provider throws
+  // the `TRELLIS_OAUTH_REQUIRED` sentinel instead of opening a browser tab —
+  // session-init must never initiate a browser OAuth flow. Reused across
+  // transport restarts so persisted tokens + pre-registered client_id stay
+  // consistent for the server's lifetime.
   authProvider: TrellisOAuthProvider | null;
+  // Interactive auth provider used only by the explicit Authorize path
+  // (`runAuthorizeServer`). Kept separate from `authProvider` so we never
+  // have to mutate a shared mode flag — the transport's provider stays
+  // quiet for its entire lifetime.
+  authProviderInteractive: TrellisOAuthProvider | null;
 }
 
 interface WorkspaceMCPState {
@@ -200,10 +209,11 @@ export class MCPManager {
     instance.pid = null;
     instance.client = null;
     instance.transport = null;
-    // Reload rebuilds the auth provider so edits to clientId/clientSecret/scope
+    // Reload rebuilds the auth providers so edits to clientId/clientSecret/scope
     // in the config actually take effect. Persisted tokens stay untouched —
     // they live in the encrypted store, not on the provider.
     instance.authProvider = null;
+    instance.authProviderInteractive = null;
     state.servers.set(serverName, instance);
     await this.startServer(instance);
     return toStatus(instance);
@@ -300,16 +310,19 @@ export class MCPManager {
       scope?: string;
     };
 
-    // Build (or reuse) an auth provider. We don't rely on the instance's
-    // provider here because the server may not have been spawned yet.
+    // Build (or reuse) the interactive auth provider. The transport's
+    // provider is quiet — it refuses to open a browser tab — so we can't
+    // share it with the explicit Authorize flow, which depends on
+    // `redirectToAuthorization` actually firing the bridge call.
     const existing = state.servers.get(serverName);
     const authProvider =
-      existing?.authProvider ??
+      existing?.authProviderInteractive ??
       new TrellisOAuthProvider(serverName, {
         clientId: httpCfg.clientId,
         clientSecret: httpCfg.clientSecret,
         scope: httpCfg.scope,
       });
+    if (existing) existing.authProviderInteractive = authProvider;
 
     const firstPass = await auth(authProvider, { serverUrl: httpCfg.url });
     if (firstPass === 'AUTHORIZED') {
@@ -405,7 +418,16 @@ export class MCPManager {
       instance.state = 'ready';
     } catch (err) {
       instance.state = 'error';
-      instance.error = err instanceof Error ? err.message : String(err);
+      // If the transport hit a 401 and the quiet auth provider threw our
+      // sentinel, this is a cold-start "needs authorization" state — not a
+      // real failure. Replace the raw sentinel message with something the
+      // UI can render verbatim. Use `includes` because the SDK may wrap
+      // the error message with transport-level context before it reaches
+      // us.
+      const raw = err instanceof Error ? err.message : String(err);
+      instance.error = raw.includes(TRELLIS_OAUTH_REQUIRED)
+        ? 'Needs authorization — use Authorize in Settings'
+        : raw;
       try {
         await transport.close();
       } catch {
@@ -429,11 +451,16 @@ export class MCPManager {
       const url = new URL(cfg.url);
       // Reuse the same provider instance across reload cycles so persisted
       // tokens + pre-registered client info aren't thrown away on restart.
+      // Always quiet: if the transport hits a 401, we want `startServer` to
+      // land the server in a benign "needs authorization" state, not open
+      // a browser tab. The explicit Authorize path uses a separate
+      // interactive provider (see `runAuthorizeServer`).
       if (!instance.authProvider) {
         instance.authProvider = new TrellisOAuthProvider(instance.name, {
           clientId: cfg.clientId,
           clientSecret: cfg.clientSecret,
           scope: cfg.scope,
+          quiet: true,
         });
       }
       const authProvider = instance.authProvider;
@@ -509,6 +536,7 @@ function makeInstance(name: string, config: MergedMCPServer): ServerInstance {
     pid: null,
     stderrTail: [],
     authProvider: null,
+    authProviderInteractive: null,
   };
 }
 

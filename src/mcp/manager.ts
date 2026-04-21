@@ -280,14 +280,41 @@ export class MCPManager {
     }
 
     const code = await authProvider.waitForAuthorizationCode();
-    const secondPass = await auth(authProvider, {
-      serverUrl: httpCfg.url,
-      authorizationCode: code,
-    });
+    let secondPass: Awaited<ReturnType<typeof auth>>;
+    try {
+      secondPass = await auth(authProvider, {
+        serverUrl: httpCfg.url,
+        authorizationCode: code,
+      });
+    } catch (err) {
+      // Before this explicit catch, SDK-level failures (network, 4xx token
+      // response, malformed metadata) surfaced as a vague "did not complete"
+      // error because nothing logged the underlying exception.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[trellis] MCP OAuth token exchange failed for "${serverName}":`, err);
+      await authProvider.reportExchangeResult('failed', msg);
+      throw new Error(`OAuth token exchange for "${serverName}" failed: ${msg}`);
+    }
     if (secondPass !== 'AUTHORIZED') {
+      const msg = `token exchange returned ${secondPass}`;
+      console.error(`[trellis] MCP OAuth flow for "${serverName}" did not authorize: ${msg}`);
+      await authProvider.reportExchangeResult('failed', msg);
       throw new Error(`OAuth flow for "${serverName}" did not complete (got ${secondPass})`);
     }
 
+    // Belt-and-suspenders: the SDK can technically return AUTHORIZED
+    // without saveTokens() having run (e.g. a future bug in the grant path).
+    // Confirm the access token actually landed in safeStorage before we
+    // tell the UI we're done.
+    const persisted = await authProvider.tokens();
+    if (!persisted?.access_token) {
+      const msg = 'token exchange reported success but no access_token was persisted';
+      console.error(`[trellis] MCP OAuth flow for "${serverName}" completed without tokens`);
+      await authProvider.reportExchangeResult('failed', msg);
+      throw new Error(`OAuth flow for "${serverName}" ${msg}`);
+    }
+
+    await authProvider.reportExchangeResult('success');
     return this.reloadServer(workspaceId, serverName);
   }
 

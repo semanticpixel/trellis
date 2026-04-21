@@ -6,14 +6,47 @@ import { z } from 'zod';
 
 // ── Schemas ────────────────────────────────────────────────────
 
-export const MCPServerConfigSchema = z.object({
+// Stdio entries may omit `type` entirely — that's the v1 Claude Code shape
+// and we want to keep accepting it verbatim.
+const StdioServerSchema = z.object({
+  type: z.literal('stdio').optional(),
   command: z.string().min(1),
   args: z.array(z.string()).optional(),
   env: z.record(z.string()).optional(),
   cwd: z.string().optional(),
 });
 
+const HttpServerSchema = z.object({
+  type: z.literal('http'),
+  url: z.string().url(),
+  headers: z.record(z.string()).optional(),
+});
+
+const SseServerSchema = z.object({
+  type: z.literal('sse'),
+  url: z.string().url(),
+  headers: z.record(z.string()).optional(),
+});
+
+// Http/sse entries carry a literal discriminator; stdio entries may not.
+// Combining via `.or()` lets either branch win without forcing `type` to be
+// present on stdio.
+export const MCPServerConfigSchema = z
+  .discriminatedUnion('type', [HttpServerSchema, SseServerSchema])
+  .or(StdioServerSchema);
+
 export type MCPServerConfig = z.infer<typeof MCPServerConfigSchema>;
+export type StdioServerConfig = z.infer<typeof StdioServerSchema>;
+export type HttpServerConfig = z.infer<typeof HttpServerSchema>;
+export type SseServerConfig = z.infer<typeof SseServerSchema>;
+
+export type MCPTransportType = 'stdio' | 'http' | 'sse';
+
+export function transportTypeOf(cfg: MCPServerConfig): MCPTransportType {
+  if ('type' in cfg && cfg.type === 'http') return 'http';
+  if ('type' in cfg && cfg.type === 'sse') return 'sse';
+  return 'stdio';
+}
 
 export const MCPConfigFileSchema = z.object({
   mcpServers: z.record(MCPServerConfigSchema).default({}),
@@ -21,9 +54,9 @@ export const MCPConfigFileSchema = z.object({
 
 export type MCPConfigFile = z.infer<typeof MCPConfigFileSchema>;
 
-export interface MergedMCPServer extends MCPServerConfig {
+export type MergedMCPServer = MCPServerConfig & {
   source: 'workspace' | 'user';
-}
+};
 
 // ── Paths ──────────────────────────────────────────────────────
 
@@ -39,14 +72,27 @@ export function workspaceConfigPath(workspacePath: string): string {
 
 export async function loadConfigFile(path: string): Promise<MCPConfigFile | null> {
   if (!existsSync(path)) return null;
+  let raw: string;
   try {
-    const raw = await readFile(path, 'utf-8');
-    const json = JSON.parse(raw);
-    return MCPConfigFileSchema.parse(json);
+    raw = await readFile(path, 'utf-8');
   } catch (err) {
-    console.error(`[trellis] Invalid MCP config at ${path}:`, err instanceof Error ? err.message : err);
+    console.error(`[trellis] Could not read MCP config at ${path}:`, err instanceof Error ? err.message : err);
     return null;
   }
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    console.error(`[trellis] Invalid JSON in MCP config at ${path}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+  // Top-level envelope (`{ mcpServers: ... }`) must parse, but individual
+  // entries are filtered below so one bad one doesn't disable the rest.
+  if (!json || typeof json !== 'object' || !('mcpServers' in json)) {
+    return { mcpServers: {} };
+  }
+  const servers = parseServersRecord((json as { mcpServers: unknown }).mcpServers, path);
+  return { mcpServers: servers };
 }
 
 export async function saveUserConfig(config: MCPConfigFile): Promise<void> {
@@ -107,7 +153,7 @@ export async function detectClaudeCodeConfigs(): Promise<ClaudeCodeImportCandida
     try {
       const raw = await readFile(path, 'utf-8');
       const json = JSON.parse(raw);
-      const servers = extractMcpServers(json);
+      const servers = extractMcpServers(json, path);
       if (Object.keys(servers).length > 0) {
         found.push({ source: path, servers });
       }
@@ -118,31 +164,64 @@ export async function detectClaudeCodeConfigs(): Promise<ClaudeCodeImportCandida
   return found;
 }
 
-function extractMcpServers(json: unknown): Record<string, MCPServerConfig> {
+function extractMcpServers(json: unknown, path: string): Record<string, MCPServerConfig> {
   const result: Record<string, MCPServerConfig> = {};
   if (!json || typeof json !== 'object') return result;
   const obj = json as Record<string, unknown>;
 
-  const topLevel = z.record(MCPServerConfigSchema).safeParse(obj.mcpServers);
-  if (topLevel.success) {
-    for (const [name, cfg] of Object.entries(topLevel.data)) {
-      result[name] = cfg;
-    }
+  for (const [name, cfg] of Object.entries(parseServersRecord(obj.mcpServers, path))) {
+    result[name] = cfg;
   }
 
-  // ~/.claude.json also stores per-project mcpServers under `projects[path]`
+  // ~/.claude.json also stores per-project mcpServers under `projects[path]`.
   if (obj.projects && typeof obj.projects === 'object') {
-    for (const project of Object.values(obj.projects as Record<string, unknown>)) {
+    for (const [projectPath, project] of Object.entries(obj.projects as Record<string, unknown>)) {
       if (!project || typeof project !== 'object') continue;
       const projectServers = (project as Record<string, unknown>).mcpServers;
-      const parsed = z.record(MCPServerConfigSchema).safeParse(projectServers);
-      if (parsed.success) {
-        for (const [name, cfg] of Object.entries(parsed.data)) {
-          if (!result[name]) result[name] = cfg;
-        }
+      const parsed = parseServersRecord(projectServers, `${path}#projects.${projectPath}`);
+      for (const [name, cfg] of Object.entries(parsed)) {
+        if (!result[name]) result[name] = cfg;
       }
     }
   }
 
   return result;
+}
+
+// Parse a `mcpServers` record one entry at a time so that a single malformed
+// entry (e.g. an http server on an old schema, or a typo'd stdio command)
+// no longer nukes the entire record. Invalid entries are logged and skipped.
+function parseServersRecord(value: unknown, sourceLabel: string): Record<string, MCPServerConfig> {
+  const out: Record<string, MCPServerConfig> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [name, rawCfg] of Object.entries(value as Record<string, unknown>)) {
+    const parsed = MCPServerConfigSchema.safeParse(rawCfg);
+    if (parsed.success) {
+      out[name] = parsed.data;
+    } else {
+      const issues = parsed.error.issues.map((i) => `${i.path.join('.') || '<root>'}: ${i.message}`).join('; ');
+      console.warn(`[trellis] Skipping MCP server "${name}" in ${sourceLabel}: ${issues}`);
+    }
+  }
+  return out;
+}
+
+// ── Env var interpolation ──────────────────────────────────────
+
+/**
+ * Expand `${env:VAR_NAME}` placeholders in a string value using process.env.
+ * Unknown vars resolve to an empty string. Kept deliberately narrow so
+ * `.mcp.json` files can reference secrets without pasting them inline.
+ */
+export function interpolateEnvRefs(value: string): string {
+  return value.replace(/\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) => process.env[name] ?? '');
+}
+
+export function resolveHeaders(headers: Record<string, string> | undefined): Record<string, string> {
+  if (!headers) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    out[k] = interpolateEnvRefs(v);
+  }
+  return out;
 }

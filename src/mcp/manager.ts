@@ -1,7 +1,16 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, type StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { ToolDefinition } from '../shared/types.js';
-import { loadMergedConfig, type MergedMCPServer } from './config.js';
+import {
+  loadMergedConfig,
+  resolveHeaders,
+  transportTypeOf,
+  type MCPTransportType,
+  type MergedMCPServer,
+} from './config.js';
 
 const STDERR_RING_SIZE = 200;
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -11,6 +20,8 @@ export type MCPServerState = 'starting' | 'ready' | 'error' | 'stopped';
 export interface MCPServerStatus {
   name: string;
   source: 'workspace' | 'user';
+  transport: MCPTransportType;
+  url: string | null;
   state: MCPServerState;
   toolCount: number;
   error: string | null;
@@ -23,7 +34,7 @@ interface ServerInstance {
   name: string;
   config: MergedMCPServer;
   client: Client | null;
-  transport: StdioClientTransport | null;
+  transport: Transport | null;
   tools: Array<{ name: string; description: string; inputSchema: unknown }>;
   state: MCPServerState;
   error: string | null;
@@ -214,34 +225,25 @@ export class MCPManager {
     instance.state = 'starting';
     instance.error = null;
 
-    const params: StdioServerParameters = {
-      command: instance.config.command,
-      args: instance.config.args,
-      stderr: 'pipe',
-    };
-    if (instance.config.env) {
-      params.env = { ...process.env, ...instance.config.env } as Record<string, string>;
-    }
-    if (instance.config.cwd) {
-      params.cwd = instance.config.cwd;
+    const transportType = transportTypeOf(instance.config);
+    let transport: Transport;
+    try {
+      transport = this.createTransport(instance, transportType);
+    } catch (err) {
+      instance.state = 'error';
+      instance.error = err instanceof Error ? err.message : String(err);
+      return;
     }
 
-    const transport = new StdioClientTransport(params);
     const client = new Client({ name: 'trellis', version: '0.1.0' }, { capabilities: {} });
-
-    transport.stderr?.on('data', (chunk: Buffer) => {
-      const lines = chunk.toString('utf-8').split('\n').filter(Boolean);
-      instance.stderrTail.push(...lines);
-      if (instance.stderrTail.length > STDERR_RING_SIZE) {
-        instance.stderrTail.splice(0, instance.stderrTail.length - STDERR_RING_SIZE);
-      }
-    });
 
     try {
       await client.connect(transport);
       instance.transport = transport;
       instance.client = client;
-      instance.pid = transport.pid;
+      if (transport instanceof StdioClientTransport) {
+        instance.pid = transport.pid;
+      }
 
       const listed = await client.listTools();
       instance.tools = listed.tools.map((t) => ({
@@ -261,6 +263,57 @@ export class MCPManager {
       instance.transport = null;
       instance.client = null;
     }
+  }
+
+  private createTransport(instance: ServerInstance, type: MCPTransportType): Transport {
+    if (type === 'http' || type === 'sse') {
+      const cfg = instance.config as { url: string; headers?: Record<string, string> };
+      const headers = resolveHeaders(cfg.headers);
+      const url = new URL(cfg.url);
+      if (type === 'http') {
+        return new StreamableHTTPClientTransport(url, {
+          requestInit: { headers },
+        });
+      }
+      return new SSEClientTransport(url, {
+        requestInit: { headers },
+        // SSEClientTransport ignores the Authorization header on the initial
+        // EventSource request unless eventSourceInit explicitly forwards it,
+        // so mirror headers into the EventSource fetch override.
+        eventSourceInit: {
+          fetch: (fetchUrl, init) =>
+            fetch(fetchUrl, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...headers } }),
+        },
+      });
+    }
+
+    const stdioCfg = instance.config as {
+      command: string;
+      args?: string[];
+      env?: Record<string, string>;
+      cwd?: string;
+    };
+    const params: StdioServerParameters = {
+      command: stdioCfg.command,
+      args: stdioCfg.args,
+      stderr: 'pipe',
+    };
+    if (stdioCfg.env) {
+      params.env = { ...process.env, ...stdioCfg.env } as Record<string, string>;
+    }
+    if (stdioCfg.cwd) {
+      params.cwd = stdioCfg.cwd;
+    }
+
+    const transport = new StdioClientTransport(params);
+    transport.stderr?.on('data', (chunk: Buffer) => {
+      const lines = chunk.toString('utf-8').split('\n').filter(Boolean);
+      instance.stderrTail.push(...lines);
+      if (instance.stderrTail.length > STDERR_RING_SIZE) {
+        instance.stderrTail.splice(0, instance.stderrTail.length - STDERR_RING_SIZE);
+      }
+    });
+    return transport;
   }
 
   private async shutdownWorkspace(workspaceId: string): Promise<void> {
@@ -301,9 +354,13 @@ async function closeInstance(instance: ServerInstance): Promise<void> {
 }
 
 function toStatus(instance: ServerInstance): MCPServerStatus {
+  const transport = transportTypeOf(instance.config);
+  const url = transport === 'stdio' ? null : (instance.config as { url?: string }).url ?? null;
   return {
     name: instance.name,
     source: instance.config.source,
+    transport,
+    url,
     state: instance.state,
     toolCount: instance.tools.length,
     error: instance.error,

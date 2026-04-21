@@ -62,6 +62,12 @@ interface WorkspaceMCPState {
  */
 export class MCPManager {
   private workspaces = new Map<string, WorkspaceMCPState>();
+  // The browser OAuth callback listener binds a fixed loopback port; two
+  // concurrent flows would collide with EADDRINUSE. Chain authorizeServer
+  // calls through a single promise so parallel triggers (e.g. Reload All
+  // after adding several OAuth servers) degrade gracefully into sequential
+  // flows. Previous flow failures don't poison the chain.
+  private oauthFlowChain: Promise<unknown> = Promise.resolve();
 
   async acquire(workspaceId: string, workspacePath: string, threadId: string): Promise<void> {
     let state = this.workspaces.get(workspaceId);
@@ -155,9 +161,26 @@ export class MCPManager {
     return [...state.servers.values()].map(toStatus);
   }
 
-  async reloadServer(workspaceId: string, serverName: string): Promise<MCPServerStatus | null> {
-    const state = this.workspaces.get(workspaceId);
-    if (!state) return null;
+  async reloadServer(
+    workspaceId: string,
+    workspacePath: string,
+    serverName: string,
+  ): Promise<MCPServerStatus | null> {
+    // Bootstrap a transient workspace slot if no thread has ever run here —
+    // otherwise a reload triggered from Settings before the workspace's
+    // first session would return null and the route would 404 the user.
+    // Matches the reloadAll / authorizeServer pattern.
+    let state = this.workspaces.get(workspaceId);
+    if (!state) {
+      state = {
+        workspaceId,
+        workspacePath,
+        servers: new Map(),
+        activeThreads: new Set(),
+        initPromise: null,
+      };
+      this.workspaces.set(workspaceId, state);
+    }
     const existing = state.servers.get(serverName);
     if (existing) {
       await closeInstance(existing);
@@ -232,6 +255,22 @@ export class MCPManager {
     workspacePath: string,
     serverName: string,
   ): Promise<MCPServerStatus | null> {
+    // Wait for any in-flight OAuth flow to finish before starting ours.
+    // `.then(run, run)` runs `run` regardless of the previous result so a
+    // failed earlier flow doesn't permanently block the queue.
+    const run = (): Promise<MCPServerStatus | null> =>
+      this.runAuthorizeServer(workspaceId, workspacePath, serverName);
+    const prev = this.oauthFlowChain;
+    const next = prev.then(run, run);
+    this.oauthFlowChain = next.catch(() => undefined);
+    return next;
+  }
+
+  private async runAuthorizeServer(
+    workspaceId: string,
+    workspacePath: string,
+    serverName: string,
+  ): Promise<MCPServerStatus | null> {
     let state = this.workspaces.get(workspaceId);
     if (!state) {
       // No active session — spin up a transient state so the manual
@@ -276,7 +315,7 @@ export class MCPManager {
     if (firstPass === 'AUTHORIZED') {
       // Existing tokens were fine — nothing to do beyond reloading the
       // server so stale connections pick them up.
-      return this.reloadServer(workspaceId, serverName);
+      return this.reloadServer(workspaceId, state.workspacePath, serverName);
     }
 
     const code = await authProvider.waitForAuthorizationCode();
@@ -315,7 +354,7 @@ export class MCPManager {
     }
 
     await authProvider.reportExchangeResult('success');
-    return this.reloadServer(workspaceId, serverName);
+    return this.reloadServer(workspaceId, state.workspacePath, serverName);
   }
 
   // ── Internals ───────────────────────────────────────────────

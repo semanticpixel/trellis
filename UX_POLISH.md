@@ -36,6 +36,16 @@
 - **What:** Addition lines in the diff viewer use a green background + text color combination where some text becomes hard to read. Likely fails WCAG AA contrast (4.5:1 for body text)
 - **Target:** Run current green through a contrast checker. Darken the text or lighten the tint until ratio is at least 4.5:1 in both light and dark themes. Same check for `--diff-del-fg` / `--diff-del-bg`
 
+### Reload All MCP button — keep, rework, or remove?
+- **Where:** `dashboard/src/components/settings/SettingsOverlay.tsx` (MCP tab header), `src/api/routes.ts` `POST /mcp/reload-all` endpoint
+- **What:** After item 51's cold-start reload fix lands, individual per-server reload covers the primary use case. Reload All's only remaining value is bulk-restart for error recovery — but for users with mostly HTTP/OAuth servers, clicking it opens N browser tabs simultaneously and triggers the EADDRINUSE port collision on callback port 33418. Feels like a footgun in its current form.
+- **Target:** Decide between three options based on dogfooding friction:
+  - **(a) Remove entirely.** If bulk-start is rarely useful, delete the button and the `/mcp/reload-all` endpoint. Simplest.
+  - **(b) Split into "Start all stdio" + per-server authorize.** Stdio spawns are instant/headless. HTTP/SSE should always be per-server opt-in. Captures the useful case without the OAuth tab-storm.
+  - **(c) Keep as-is but gate behind confirmation.** "This will open N browser tabs for authorization, continue?" plus require item 52 (serialize OAuth callback port) to be implemented first.
+- **Decision depends on:** whether bulk-start ever feels useful during real daily use. If you never click Reload All intentionally, go with (a). If you click it after config imports, go with (b). If it genuinely helps recovery scenarios, (c) with item 52 as a prerequisite.
+- **Linked item:** Item 52 (serialize OAuth flows / fix EADDRINUSE) in PLAN-v3 becomes required only if we keep Reload All. If we remove it, item 52 can be dropped.
+
 ### Button alignment inconsistencies
 - **Where:** multiple components — log specific spots below as they're spotted
 - **What:** Buttons across the app don't align consistently — some sit too high/low relative to siblings, icon + text pairs have inconsistent gaps

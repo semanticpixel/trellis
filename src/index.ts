@@ -5,6 +5,7 @@ import { AnthropicAdapter } from './llm/anthropic.js';
 import { OpenAIAdapter } from './llm/openai.js';
 import { OllamaAdapter } from './llm/ollama.js';
 import { CustomAdapter } from './llm/custom.js';
+import { mcpManager } from './mcp/manager.js';
 import { SERVER_PORT, DB_FILENAME } from './shared/constants.js';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -54,9 +55,10 @@ const port = parseInt(process.env.PORT ?? String(SERVER_PORT), 10);
 const { httpServer } = createServer(store, port);
 
 // Graceful shutdown
-const shutdown = () => {
+const shutdown = async () => {
   console.log('[trellis] Shutting down...');
   httpServer.close();
+  await mcpManager.shutdownAll();
   store.close();
   process.exit(0);
 };

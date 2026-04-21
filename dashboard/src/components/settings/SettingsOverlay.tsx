@@ -9,9 +9,19 @@ import {
   useDeleteWorkspace,
   useSetting,
   useSetSetting,
+  useMcpServers,
+  useCreateMcpServer,
+  useUpdateMcpServer,
+  useDeleteMcpServer,
+  useReloadMcpServer,
+  useReloadAllMcp,
+  useClaudeCodeCandidates,
+  useImportMcpServers,
+  type McpServerInfo,
 } from '../../hooks/useWorkspaces';
+import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import { ColorPicker } from '../sidebar/ColorPicker';
-import { X, Trash2, Pencil, Plus, Check, Keyboard } from 'lucide-react';
+import { X, Trash2, Pencil, Plus, Check, Keyboard, RefreshCw, Download, Server, AlertCircle } from 'lucide-react';
 import type { Provider, ProviderType } from '@shared/types';
 import styles from './SettingsOverlay.module.css';
 
@@ -20,7 +30,7 @@ interface SettingsOverlayProps {
   onOpenShortcutReference: () => void;
 }
 
-type SettingsTab = 'providers' | 'workspaces' | 'appearance';
+type SettingsTab = 'providers' | 'mcp' | 'workspaces' | 'appearance';
 
 export function SettingsOverlay({ onClose, onOpenShortcutReference }: SettingsOverlayProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers');
@@ -55,6 +65,12 @@ export function SettingsOverlay({ onClose, onOpenShortcutReference }: SettingsOv
             Providers
           </button>
           <button
+            className={activeTab === 'mcp' ? styles.tabActive : styles.tab}
+            onClick={() => setActiveTab('mcp')}
+          >
+            MCP
+          </button>
+          <button
             className={activeTab === 'workspaces' ? styles.tabActive : styles.tab}
             onClick={() => setActiveTab('workspaces')}
           >
@@ -70,6 +86,7 @@ export function SettingsOverlay({ onClose, onOpenShortcutReference }: SettingsOv
 
         <div className={styles.body}>
           {activeTab === 'providers' && <ProvidersTab />}
+          {activeTab === 'mcp' && <McpTab />}
           {activeTab === 'workspaces' && <WorkspacesTab />}
           {activeTab === 'appearance' && <AppearanceTab />}
         </div>
@@ -444,4 +461,397 @@ function applyTheme(theme: string): void {
     root.setAttribute('data-theme', theme);
   }
   // 'system' means use prefers-color-scheme (no override)
+}
+
+// ── MCP Tab ────────────────────────────────────────────────────
+
+const isNullableString = (v: unknown): v is string | null => v === null || typeof v === 'string';
+
+function McpTab() {
+  // Mirrors App.tsx's persisted selection so live status lines up with the
+  // workspace the user is actually focused on.
+  const [workspaceId] = usePersistedSetting<string | null>(
+    'session.activeWorkspaceId',
+    null,
+    isNullableString,
+  );
+  const { data: workspaces } = useWorkspaces();
+  const { data: servers, isLoading } = useMcpServers(workspaceId);
+  const { data: candidates } = useClaudeCodeCandidates();
+  const reloadAll = useReloadAllMcp();
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+
+  const workspace = workspaces?.find((w) => w.id === workspaceId);
+  const hasCandidates = (candidates?.length ?? 0) > 0;
+
+  return (
+    <div>
+      <div className={styles.section}>
+        <div className={styles.mcpHeader}>
+          <div>
+            <div className={styles.sectionTitle}>Model Context Protocol servers</div>
+            <p className={styles.mcpHint}>
+              Configured in <code>~/.trellis/mcp.json</code> (user) or <code>&lt;workspace&gt;/.mcp.json</code> (project).
+              Tools are exposed as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>.
+              {workspace && (
+                <> Live status is for <strong>{workspace.name}</strong>.</>
+              )}
+              {!workspace && <> Select a workspace in the sidebar to see live status.</>}
+            </p>
+          </div>
+          {workspaceId && (
+            <button
+              className={styles.btnSecondary}
+              onClick={() => reloadAll.mutate(workspaceId)}
+              disabled={reloadAll.isPending}
+              title="Reload all MCP servers for this workspace"
+            >
+              <RefreshCw size={12} /> Reload all
+            </button>
+          )}
+        </div>
+
+        {hasCandidates && !showImport && (
+          <button className={styles.mcpImportBanner} onClick={() => setShowImport(true)}>
+            <Download size={14} />
+            <span>
+              Found Claude Code MCP config — import {countServers(candidates ?? [])} server(s)
+            </span>
+          </button>
+        )}
+
+        {showImport && candidates && (
+          <McpImportPanel candidates={candidates} onDone={() => setShowImport(false)} />
+        )}
+
+        {isLoading && <p className={styles.mcpHint}>Loading…</p>}
+
+        {servers?.map((s) =>
+          editing === s.name ? (
+            <McpServerForm
+              key={s.name}
+              server={s}
+              onDone={() => setEditing(null)}
+            />
+          ) : (
+            <McpServerCard
+              key={s.name}
+              server={s}
+              workspaceId={workspaceId}
+              onEdit={() => setEditing(s.name)}
+            />
+          ),
+        )}
+
+        {servers?.length === 0 && !showAdd && (
+          <p className={styles.mcpHint}>
+            No MCP servers configured. Add one below — commands like <code>npx</code>,{' '}
+            <code>uvx</code>, or a custom binary all work.
+          </p>
+        )}
+
+        {showAdd ? (
+          <McpServerForm onDone={() => setShowAdd(false)} />
+        ) : (
+          <button className={styles.addBtn} onClick={() => setShowAdd(true)}>
+            <Plus size={14} /> Add MCP server
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function countServers(candidates: { servers: Record<string, unknown> }[]): number {
+  const names = new Set<string>();
+  for (const c of candidates) for (const name of Object.keys(c.servers)) names.add(name);
+  return names.size;
+}
+
+function McpServerCard({
+  server,
+  workspaceId,
+  onEdit,
+}: {
+  server: McpServerInfo;
+  workspaceId: string | null;
+  onEdit: () => void;
+}) {
+  const deleteServer = useDeleteMcpServer();
+  const reload = useReloadMcpServer();
+  const [showLogs, setShowLogs] = useState(false);
+
+  const stateLabel = describeState(server);
+  const canDelete = server.source === 'user';
+  const canReload = !!workspaceId;
+
+  return (
+    <div className={styles.mcpCard}>
+      <div className={styles.mcpCardTop}>
+        <div className={styles.mcpName}>
+          <Server size={13} /> {server.name}
+          <span className={stateBadgeClass(server.state)}>{stateLabel}</span>
+          <span className={styles.mcpSource}>{server.source}</span>
+        </div>
+        <div className={styles.providerActions}>
+          {canReload && (
+            <button
+              className={styles.iconBtn}
+              onClick={() => reload.mutate({ name: server.name, workspaceId: workspaceId! })}
+              disabled={reload.isPending}
+              title="Reload server"
+            >
+              <RefreshCw size={14} />
+            </button>
+          )}
+          <button className={styles.iconBtn} onClick={onEdit} title="Edit" disabled={!canDelete}>
+            <Pencil size={14} />
+          </button>
+          {canDelete && (
+            <button
+              className={styles.dangerBtn}
+              onClick={() => {
+                if (confirm(`Remove MCP server "${server.name}"?`)) {
+                  deleteServer.mutate(server.name);
+                }
+              }}
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className={styles.mcpMeta}>
+        <code>{server.command}{server.args.length > 0 ? ` ${server.args.join(' ')}` : ''}</code>
+      </div>
+      {server.state === 'ready' && (
+        <div className={styles.mcpMeta}>
+          {server.toolCount} tool{server.toolCount === 1 ? '' : 's'}
+          {server.pid !== null ? ` • pid ${server.pid}` : ''}
+        </div>
+      )}
+      {server.error && (
+        <div className={styles.mcpError}>
+          <AlertCircle size={12} /> {server.error}
+        </div>
+      )}
+      {(server.stderrTail.length > 0 || server.error) && (
+        <button
+          className={styles.mcpLogToggle}
+          onClick={() => setShowLogs((v) => !v)}
+        >
+          {showLogs ? 'Hide' : 'Show'} server stderr ({server.stderrTail.length})
+        </button>
+      )}
+      {showLogs && server.stderrTail.length > 0 && (
+        <pre className={styles.mcpLogs}>{server.stderrTail.join('\n')}</pre>
+      )}
+    </div>
+  );
+}
+
+function stateBadgeClass(state: McpServerInfo['state']): string {
+  switch (state) {
+    case 'ready':
+      return styles.mcpStateReady;
+    case 'error':
+      return styles.mcpStateError;
+    case 'starting':
+      return styles.mcpStateStarting;
+    default:
+      return styles.mcpStateIdle;
+  }
+}
+
+function describeState(server: McpServerInfo): string {
+  switch (server.state) {
+    case 'ready':
+      return 'ready';
+    case 'starting':
+      return 'starting';
+    case 'error':
+      return 'error';
+    case 'stopped':
+      return 'stopped';
+    default:
+      return 'not started';
+  }
+}
+
+function McpServerForm({ server, onDone }: { server?: McpServerInfo; onDone: () => void }) {
+  const createServer = useCreateMcpServer();
+  const updateServer = useUpdateMcpServer();
+
+  const [name, setName] = useState(server?.name ?? '');
+  const [command, setCommand] = useState(server?.command ?? '');
+  const [argsText, setArgsText] = useState(server ? server.args.join(' ') : '');
+  const [envText, setEnvText] = useState(
+    server ? Object.entries(server.env).map(([k, v]) => `${k}=${v}`).join('\n') : '',
+  );
+
+  const handleSubmit = () => {
+    if (!name.trim() || !command.trim()) return;
+    const config = {
+      command: command.trim(),
+      args: splitArgs(argsText),
+      env: parseEnvLines(envText),
+    };
+    if (server) {
+      updateServer.mutate({ name: server.name, config }, { onSuccess: onDone });
+    } else {
+      createServer.mutate({ name: name.trim(), config }, { onSuccess: onDone });
+    }
+  };
+
+  return (
+    <div className={styles.form}>
+      <div className={styles.formRow}>
+        <label className={styles.label}>Name</label>
+        <input
+          className={styles.input}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. atlassian"
+          disabled={!!server}
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.label}>Command</label>
+        <input
+          className={styles.input}
+          value={command}
+          onChange={(e) => setCommand(e.target.value)}
+          placeholder="e.g. npx"
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.label}>Arguments</label>
+        <input
+          className={styles.input}
+          value={argsText}
+          onChange={(e) => setArgsText(e.target.value)}
+          placeholder='e.g. -y @org/mcp-server "--flag value"'
+        />
+      </div>
+      <div className={styles.formRow}>
+        <label className={styles.label}>Environment (KEY=value per line)</label>
+        <textarea
+          className={styles.textarea}
+          value={envText}
+          onChange={(e) => setEnvText(e.target.value)}
+          placeholder="API_TOKEN=sk-..."
+          rows={3}
+        />
+      </div>
+      <div className={styles.formActions}>
+        <button className={styles.btnSecondary} onClick={onDone}>Cancel</button>
+        <button className={styles.btnPrimary} onClick={handleSubmit}>
+          {server ? 'Save' : 'Add'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function McpImportPanel({
+  candidates,
+  onDone,
+}: {
+  candidates: Array<{ source: string; servers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> }>;
+  onDone: () => void;
+}) {
+  const importMutation = useImportMcpServers();
+  const allServers = new Map<string, { command: string; args?: string[]; env?: Record<string, string> }>();
+  for (const c of candidates) {
+    for (const [name, cfg] of Object.entries(c.servers)) {
+      if (!allServers.has(name)) allServers.set(name, cfg);
+    }
+  }
+  const [selected, setSelected] = useState<Set<string>>(new Set(allServers.keys()));
+
+  const toggle = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const handleImport = () => {
+    const subset: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> = {};
+    for (const name of selected) {
+      const cfg = allServers.get(name);
+      if (cfg) subset[name] = cfg;
+    }
+    importMutation.mutate(
+      { servers: subset, overwrite: false },
+      { onSuccess: onDone },
+    );
+  };
+
+  return (
+    <div className={styles.form}>
+      <div className={styles.label}>Import from Claude Code config</div>
+      <p className={styles.mcpHint}>
+        Discovered {allServers.size} server(s) across {candidates.length} file(s). Existing entries in your
+        Trellis config won't be overwritten.
+      </p>
+      {[...allServers.entries()].map(([name, cfg]) => (
+        <label key={name} className={styles.mcpImportRow}>
+          <input
+            type="checkbox"
+            checked={selected.has(name)}
+            onChange={() => toggle(name)}
+          />
+          <div>
+            <div className={styles.mcpName}>{name}</div>
+            <div className={styles.mcpMeta}>
+              <code>{cfg.command}{cfg.args?.length ? ` ${cfg.args.join(' ')}` : ''}</code>
+            </div>
+          </div>
+        </label>
+      ))}
+      <div className={styles.formActions}>
+        <button className={styles.btnSecondary} onClick={onDone}>Cancel</button>
+        <button
+          className={styles.btnPrimary}
+          onClick={handleImport}
+          disabled={selected.size === 0 || importMutation.isPending}
+        >
+          Import {selected.size} server{selected.size === 1 ? '' : 's'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Simple whitespace split that respects double-quoted segments — enough for
+// the common npx / uvx invocations users paste from Claude Code configs.
+function splitArgs(input: string): string[] {
+  const out: string[] = [];
+  const re = /"([^"]*)"|(\S+)/g;
+  let m;
+  while ((m = re.exec(input)) !== null) {
+    out.push(m[1] ?? m[2] ?? '');
+  }
+  return out;
+}
+
+function parseEnvLines(input: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const line of input.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const idx = trimmed.indexOf('=');
+    if (idx < 0) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim();
+    if (key) env[key] = value;
+  }
+  return env;
 }

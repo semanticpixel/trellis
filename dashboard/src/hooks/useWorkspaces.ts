@@ -311,6 +311,132 @@ export function useAdapters() {
   });
 }
 
+// ── MCP Servers ─────────────────────────────────────────────
+
+export interface McpServerInfo {
+  name: string;
+  source: 'workspace' | 'user';
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  cwd: string | null;
+  state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped';
+  toolCount: number;
+  tools: Array<{ name: string; description: string }>;
+  error: string | null;
+  pid: number | null;
+  stderrTail: string[];
+}
+
+export interface McpServerConfigInput {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+}
+
+export interface McpImportCandidate {
+  source: string;
+  servers: Record<string, McpServerConfigInput>;
+}
+
+const MCP_SERVERS_KEY = (workspaceId: string | null) => ['mcp-servers', workspaceId] as const;
+
+export function useMcpServers(workspaceId: string | null) {
+  return useQuery<McpServerInfo[]>({
+    queryKey: MCP_SERVERS_KEY(workspaceId),
+    queryFn: () =>
+      fetchJson(
+        workspaceId
+          ? `${API}/mcp/servers?workspace_id=${encodeURIComponent(workspaceId)}`
+          : `${API}/mcp/servers`,
+      ),
+    refetchInterval: workspaceId ? 3000 : false,
+  });
+}
+
+export function useCreateMcpServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, config }: { name: string; config: McpServerConfigInput }) =>
+      fetchJson(`${API}/mcp/servers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, config }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
+export function useUpdateMcpServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, config }: { name: string; config: McpServerConfigInput }) =>
+      fetchJson(`${API}/mcp/servers/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
+export function useDeleteMcpServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      fetchJson(`${API}/mcp/servers/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
+export function useReloadMcpServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, workspaceId }: { name: string; workspaceId: string }) =>
+      fetchJson(`${API}/mcp/servers/${encodeURIComponent(name)}/reload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
+export function useReloadAllMcp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (workspaceId: string) =>
+      fetchJson(`${API}/mcp/reload-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
+export function useClaudeCodeCandidates() {
+  return useQuery<McpImportCandidate[]>({
+    queryKey: ['mcp-candidates'],
+    queryFn: () => fetchJson(`${API}/mcp/claude-code-candidates`),
+    staleTime: 60_000,
+  });
+}
+
+export function useImportMcpServers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ servers, overwrite }: { servers: Record<string, McpServerConfigInput>; overwrite: boolean }) =>
+      fetchJson<{ imported: number; skipped: number }>(`${API}/mcp/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ servers, overwrite }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
 // ── Thread Search ───────────────────────────────────────────
 
 export function useThreadSearch(query: string) {

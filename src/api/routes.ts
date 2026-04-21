@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import type { ServerContext } from './server.js';
 import { existsSync, readdirSync, statSync, appendFileSync } from 'fs';
 import { readFile } from 'fs/promises';
@@ -13,6 +14,15 @@ import { AnthropicAdapter } from '../llm/anthropic.js';
 import { OpenAIAdapter } from '../llm/openai.js';
 import { OllamaAdapter } from '../llm/ollama.js';
 import { CustomAdapter } from '../llm/custom.js';
+import {
+  loadUserConfig,
+  saveUserConfig,
+  loadMergedConfig,
+  detectClaudeCodeConfigs,
+  MCPServerConfigSchema,
+  type MCPServerConfig,
+} from '../mcp/config.js';
+import { mcpManager } from '../mcp/manager.js';
 
 export function createRoutes(ctx: ServerContext): Router {
   const router = Router();
@@ -660,6 +670,202 @@ export function createRoutes(ctx: ServerContext): Router {
     }
 
     res.json({ missing, count: missing.length });
+  });
+
+  // ── MCP Servers ────────────────────────────────────────────
+
+  // List configured servers. `workspace_id` is optional — when provided, live
+  // status (state, pid, tool list, stderr tail) from the MCP manager for that
+  // workspace is merged in so the Settings UI can show what's actually running.
+  router.get('/mcp/servers', async (req, res) => {
+    try {
+      const workspaceId = req.query.workspace_id as string | undefined;
+      let merged: Record<string, MCPServerConfig & { source: 'workspace' | 'user' }> = {};
+
+      if (workspaceId) {
+        const ws = store.getWorkspace(workspaceId);
+        if (!ws) {
+          res.status(404).json({ error: 'Workspace not found' });
+          return;
+        }
+        merged = await loadMergedConfig(ws.path);
+      } else {
+        const user = await loadUserConfig();
+        for (const [name, cfg] of Object.entries(user.mcpServers)) {
+          merged[name] = { ...cfg, source: 'user' };
+        }
+      }
+
+      const liveStatus = workspaceId ? mcpManager.getStatus(workspaceId) : [];
+      const statusMap = new Map(liveStatus.map((s) => [s.name, s]));
+
+      const servers = Object.entries(merged).map(([name, cfg]) => {
+        const live = statusMap.get(name);
+        return {
+          name,
+          source: cfg.source,
+          command: cfg.command,
+          args: cfg.args ?? [],
+          env: cfg.env ?? {},
+          cwd: cfg.cwd ?? null,
+          state: live?.state ?? 'idle',
+          toolCount: live?.toolCount ?? 0,
+          tools: live?.tools ?? [],
+          error: live?.error ?? null,
+          pid: live?.pid ?? null,
+          stderrTail: live?.stderrTail ?? [],
+        };
+      });
+      res.json(servers);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list MCP servers' });
+    }
+  });
+
+  router.post('/mcp/servers', async (req, res) => {
+    const { name, config } = req.body ?? {};
+    if (typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'name is required' });
+      return;
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      res.status(400).json({ error: 'name must match [a-zA-Z0-9_-]+ (used in tool namespace mcp__<name>__<tool>)' });
+      return;
+    }
+    const parsed = MCPServerConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const current = await loadUserConfig();
+      if (current.mcpServers[name]) {
+        res.status(409).json({ error: `Server "${name}" already exists` });
+        return;
+      }
+      current.mcpServers[name] = parsed.data;
+      await saveUserConfig(current);
+      res.status(201).json({ name, ...parsed.data, source: 'user' });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to save MCP server' });
+    }
+  });
+
+  router.put('/mcp/servers/:name', async (req, res) => {
+    const name = req.params.name;
+    const parsed = MCPServerConfigSchema.safeParse(req.body?.config);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const current = await loadUserConfig();
+      current.mcpServers[name] = parsed.data;
+      await saveUserConfig(current);
+      res.json({ name, ...parsed.data, source: 'user' });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update MCP server' });
+    }
+  });
+
+  router.delete('/mcp/servers/:name', async (req, res) => {
+    const name = req.params.name;
+    try {
+      const current = await loadUserConfig();
+      if (!(name in current.mcpServers)) {
+        res.status(404).json({ error: 'Server not found in user config' });
+        return;
+      }
+      delete current.mcpServers[name];
+      await saveUserConfig(current);
+      res.status(204).end();
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete MCP server' });
+    }
+  });
+
+  // Reload a single server (useful after editing env vars or fixing a crash).
+  // Requires a workspace_id because servers run per-workspace.
+  router.post('/mcp/servers/:name/reload', async (req, res) => {
+    const name = req.params.name;
+    const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;
+    if (!workspaceId) {
+      res.status(400).json({ error: 'workspace_id is required' });
+      return;
+    }
+    const ws = store.getWorkspace(workspaceId);
+    if (!ws) {
+      res.status(404).json({ error: 'Workspace not found' });
+      return;
+    }
+    try {
+      const status = await mcpManager.reloadServer(workspaceId, name);
+      if (!status) {
+        res.status(404).json({ error: 'Server not found in merged config for workspace' });
+        return;
+      }
+      res.json(status);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to reload MCP server' });
+    }
+  });
+
+  // Reload every server for a workspace — matches the UI "Reload all" button.
+  router.post('/mcp/reload-all', async (req, res) => {
+    const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;
+    if (!workspaceId) {
+      res.status(400).json({ error: 'workspace_id is required' });
+      return;
+    }
+    const ws = store.getWorkspace(workspaceId);
+    if (!ws) {
+      res.status(404).json({ error: 'Workspace not found' });
+      return;
+    }
+    try {
+      const statuses = await mcpManager.reloadAll(workspaceId, ws.path);
+      res.json(statuses);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to reload MCP servers' });
+    }
+  });
+
+  // Detect existing Claude Code MCP configs so the UI can offer an import.
+  router.get('/mcp/claude-code-candidates', async (_req, res) => {
+    try {
+      const candidates = await detectClaudeCodeConfigs();
+      res.json(candidates);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to detect Claude Code configs' });
+    }
+  });
+
+  // Import a set of servers into the user-level config. `overwrite=false` skips
+  // existing names; `overwrite=true` replaces them.
+  router.post('/mcp/import', async (req, res) => {
+    const { servers, overwrite } = req.body ?? {};
+    const parsed = z.record(MCPServerConfigSchema).safeParse(servers);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const current = await loadUserConfig();
+      let imported = 0;
+      let skipped = 0;
+      for (const [name, cfg] of Object.entries(parsed.data)) {
+        if (current.mcpServers[name] && !overwrite) {
+          skipped++;
+          continue;
+        }
+        current.mcpServers[name] = cfg;
+        imported++;
+      }
+      await saveUserConfig(current);
+      res.json({ imported, skipped });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to import MCP servers' });
+    }
   });
 
   return router;

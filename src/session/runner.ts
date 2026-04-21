@@ -5,6 +5,7 @@ import { getTool, getToolDefinitions } from '../tools/registry.js';
 import { MAX_TOOL_LOOPS } from '../shared/constants.js';
 import { compactMessages, estimateTokens } from './history.js';
 import { generateTitleForThread } from './titler.js';
+import { isMcpToolName, mcpManager } from '../mcp/manager.js';
 
 export interface RunnerContext {
   store: Store;
@@ -29,7 +30,8 @@ export async function runThread(
     ? store.getRepo(thread.repo_id)?.path ?? workspace.path
     : workspace.path;
 
-  const toolDefs = getToolDefinitions();
+  const mcpTools = mcpManager.listTools(thread.workspace_id);
+  const toolDefs = [...getToolDefinitions(), ...mcpTools];
   const toolContext = { workspacePath, threadId };
 
   // Build system prompt
@@ -134,18 +136,33 @@ export async function runThread(
         // Execute tool
         broadcast(threadId, 'thread_tool_start', { toolUseId: tc.id, name: tc.name });
 
-        const tool = getTool(tc.name);
         let result;
-        if (!tool) {
-          result = { output: `Unknown tool: ${tc.name}`, isError: true };
-        } else {
+        if (isMcpToolName(tc.name)) {
           try {
-            result = await tool.execute(tc.input as Record<string, unknown>, toolContext);
+            result = await mcpManager.callTool(
+              thread.workspace_id,
+              tc.name,
+              (tc.input ?? {}) as Record<string, unknown>,
+            );
           } catch (err) {
             result = {
-              output: `Tool error: ${err instanceof Error ? err.message : String(err)}`,
+              output: `MCP tool error: ${err instanceof Error ? err.message : String(err)}`,
               isError: true,
             };
+          }
+        } else {
+          const tool = getTool(tc.name);
+          if (!tool) {
+            result = { output: `Unknown tool: ${tc.name}`, isError: true };
+          } else {
+            try {
+              result = await tool.execute(tc.input as Record<string, unknown>, toolContext);
+            } catch (err) {
+              result = {
+                output: `Tool error: ${err instanceof Error ? err.message : String(err)}`,
+                isError: true,
+              };
+            }
           }
         }
 

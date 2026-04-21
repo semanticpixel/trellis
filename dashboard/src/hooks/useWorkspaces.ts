@@ -427,6 +427,38 @@ export function useReloadMcpServer() {
   });
 }
 
+export function useAuthorizeMcpServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, workspaceId }: { name: string; workspaceId: string }) =>
+      fetchJson<McpServerInfo>(
+        `${API}/mcp/servers/${encodeURIComponent(name)}/authorize`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace_id: workspaceId }),
+        },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
+export function useSignOutMcpServer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, workspaceId }: { name: string; workspaceId: string }) =>
+      fetchJson<McpServerInfo>(
+        `${API}/mcp/servers/${encodeURIComponent(name)}/authorization`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace_id: workspaceId }),
+        },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mcp-servers'] }),
+  });
+}
+
 export function useReloadAllMcp() {
   const qc = useQueryClient();
   return useMutation({

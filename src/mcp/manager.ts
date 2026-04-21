@@ -276,6 +276,53 @@ export class MCPManager {
     return next;
   }
 
+  /**
+   * Clear every persisted OAuth artifact for a server (tokens, DCR client
+   * info, PKCE verifier, discovery cache) and reload the server so the
+   * transport tears down its authorized connection. After this, the server
+   * lands in the "needs authorization" state just like a cold start with
+   * no tokens.
+   *
+   * No-ops cleanly if the server has no persisted material — the bridge
+   * DELETE handler is idempotent.
+   */
+  async signOutServer(
+    workspaceId: string,
+    workspacePath: string,
+    serverName: string,
+  ): Promise<MCPServerStatus | null> {
+    let state = this.workspaces.get(workspaceId);
+    if (!state) {
+      state = {
+        workspaceId,
+        workspacePath,
+        servers: new Map(),
+        activeThreads: new Set(),
+        initPromise: null,
+      };
+      this.workspaces.set(workspaceId, state);
+    }
+    const config = await loadMergedConfig(state.workspacePath);
+    const cfg = config[serverName];
+    if (!cfg) throw new Error(`No MCP server named "${serverName}" in merged config`);
+    if (transportTypeOf(cfg) === 'stdio') {
+      throw new Error(`Sign-out only applies to http/sse servers; "${serverName}" is stdio`);
+    }
+    const httpCfg = cfg as { clientId?: string; clientSecret?: string; scope?: string };
+    // Providers are throwaway here — invalidateCredentials just fires the
+    // bridge DELETE. We don't need the instance's provider because the
+    // material is keyed by server name, not by provider object identity.
+    const provider = new TrellisOAuthProvider(serverName, {
+      clientId: httpCfg.clientId,
+      clientSecret: httpCfg.clientSecret,
+      scope: httpCfg.scope,
+    });
+    await provider.invalidateCredentials('all');
+    // Reload so the transport reconnects without tokens and the UI flips
+    // to "needs authorization".
+    return this.reloadServer(workspaceId, state.workspacePath, serverName);
+  }
+
   private async runAuthorizeServer(
     workspaceId: string,
     workspacePath: string,

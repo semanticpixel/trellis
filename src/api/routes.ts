@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import type { ServerContext } from './server.js';
 import { existsSync, readdirSync, statSync, appendFileSync } from 'fs';
 import { readFile } from 'fs/promises';
@@ -23,6 +23,21 @@ import {
   type MergedMCPServer,
 } from '../mcp/config.js';
 import { mcpManager } from '../mcp/manager.js';
+
+/**
+ * Read a string field from either the JSON body or the query string.
+ * Returns undefined when the field is missing or any non-string value
+ * (e.g. Express parses `?x=a&x=b` into `string[]`; casting to string
+ * would silently accept that). Lets route handlers avoid `as string`
+ * casts without losing type safety.
+ */
+function readStringField(req: Request, field: string): string | undefined {
+  const fromBody: unknown = req.body?.[field];
+  if (typeof fromBody === 'string') return fromBody;
+  const fromQuery: unknown = req.query[field];
+  if (typeof fromQuery === 'string') return fromQuery;
+  return undefined;
+}
 
 export function createRoutes(ctx: ServerContext): Router {
   const router = Router();
@@ -115,10 +130,9 @@ export function createRoutes(ctx: ServerContext): Router {
   // ── Threads ────────────────────────────────────────────────
 
   router.get('/threads', (req, res) => {
-    const { workspace_id, repo_id } = req.query;
     const threads = store.listThreads(
-      workspace_id as string | undefined,
-      repo_id as string | undefined,
+      readStringField(req, 'workspace_id'),
+      readStringField(req, 'repo_id'),
     );
     res.json(threads);
   });
@@ -130,7 +144,7 @@ export function createRoutes(ctx: ServerContext): Router {
 
   // Thread search must come before /threads/:id to avoid "search" matching as :id
   router.get('/threads/search', (req, res) => {
-    const q = req.query.q as string;
+    const q = readStringField(req, 'q');
     if (!q) {
       res.json([]);
       return;
@@ -185,11 +199,12 @@ export function createRoutes(ctx: ServerContext): Router {
   // ── Messages ───────────────────────────────────────────────
 
   router.get('/threads/:threadId/messages', (req, res) => {
-    const { before, limit } = req.query;
+    const limit = readStringField(req, 'limit');
+    const before = readStringField(req, 'before');
     const messages = store.listMessages(
       req.params.threadId,
-      limit ? parseInt(limit as string, 10) : 100,
-      before ? parseInt(before as string, 10) : undefined,
+      limit ? parseInt(limit, 10) : 100,
+      before ? parseInt(before, 10) : undefined,
     );
     res.json(messages);
   });
@@ -370,7 +385,7 @@ export function createRoutes(ctx: ServerContext): Router {
     }
 
     try {
-      const baseRef = req.query.base as string | undefined;
+      const baseRef = readStringField(req, 'base');
       const diff = await getDiffSummary(repo.path, baseRef);
       res.json(diff);
     } catch (err) {
@@ -385,14 +400,14 @@ export function createRoutes(ctx: ServerContext): Router {
       return;
     }
 
-    const filePath = req.query.path as string;
+    const filePath = readStringField(req, 'path');
     if (!filePath) {
       res.status(400).json({ error: 'path query parameter is required' });
       return;
     }
 
     try {
-      const baseRef = req.query.base as string | undefined;
+      const baseRef = readStringField(req, 'base');
       const fileDiff = await getFileDiff(repo.path, filePath, baseRef);
       res.json(fileDiff);
     } catch (err) {
@@ -679,7 +694,7 @@ export function createRoutes(ctx: ServerContext): Router {
   // workspace is merged in so the Settings UI can show what's actually running.
   router.get('/mcp/servers', async (req, res) => {
     try {
-      const workspaceId = req.query.workspace_id as string | undefined;
+      const workspaceId = readStringField(req, 'workspace_id');
       let merged: Record<string, MergedMCPServer> = {};
 
       if (workspaceId) {
@@ -794,7 +809,7 @@ export function createRoutes(ctx: ServerContext): Router {
   // Requires a workspace_id because servers run per-workspace.
   router.post('/mcp/servers/:name/reload', async (req, res) => {
     const name = req.params.name;
-    const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;
+    const workspaceId = readStringField(req, 'workspace_id');
     if (!workspaceId) {
       res.status(400).json({ error: 'workspace_id is required' });
       return;
@@ -816,13 +831,12 @@ export function createRoutes(ctx: ServerContext): Router {
     }
   });
 
-  // Manual trigger for the OAuth authorization flow on http/sse servers.
-  // PR B's Settings UI will surface this as an "Authorize" button; until
-  // then, call it directly with `curl -X POST .../authorize?workspace_id=…`
-  // to exercise the full flow end-to-end.
+  // Trigger the OAuth authorization flow on http/sse servers. Surfaced as
+  // the "Authorize" button in Settings → MCP. Also callable directly via
+  // `curl -X POST .../authorize -d '{"workspace_id":"…"}'`.
   router.post('/mcp/servers/:name/authorize', async (req, res) => {
     const name = req.params.name;
-    const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;
+    const workspaceId = readStringField(req, 'workspace_id');
     if (!workspaceId) {
       res.status(400).json({ error: 'workspace_id is required' });
       return;
@@ -844,9 +858,37 @@ export function createRoutes(ctx: ServerContext): Router {
     }
   });
 
+  // Clear persisted OAuth artifacts for an http/sse server — tokens, DCR
+  // client info, PKCE verifier, discovery cache — and reload so the
+  // transport reconnects unauthenticated. Surfaced as the "Sign out"
+  // button in Settings → MCP.
+  router.delete('/mcp/servers/:name/authorization', async (req, res) => {
+    const name = req.params.name;
+    const workspaceId = readStringField(req, 'workspace_id');
+    if (!workspaceId) {
+      res.status(400).json({ error: 'workspace_id is required' });
+      return;
+    }
+    const ws = store.getWorkspace(workspaceId);
+    if (!ws) {
+      res.status(404).json({ error: 'Workspace not found' });
+      return;
+    }
+    try {
+      const status = await mcpManager.signOutServer(workspaceId, ws.path, name);
+      if (!status) {
+        res.status(404).json({ error: 'Server not found in merged config for workspace' });
+        return;
+      }
+      res.json(status);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Sign-out failed' });
+    }
+  });
+
   // Reload every server for a workspace — matches the UI "Reload all" button.
   router.post('/mcp/reload-all', async (req, res) => {
-    const workspaceId = (req.body?.workspace_id ?? req.query.workspace_id) as string | undefined;
+    const workspaceId = readStringField(req, 'workspace_id');
     if (!workspaceId) {
       res.status(400).json({ error: 'workspace_id is required' });
       return;

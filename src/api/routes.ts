@@ -805,7 +805,7 @@ export function createRoutes(ctx: ServerContext): Router {
       return;
     }
     try {
-      const status = await mcpManager.reloadServer(workspaceId, name);
+      const status = await mcpManager.reloadServer(workspaceId, ws.path, name);
       if (!status) {
         res.status(404).json({ error: 'Server not found in merged config for workspace' });
         return;

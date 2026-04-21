@@ -16,16 +16,26 @@ const StdioServerSchema = z.object({
   cwd: z.string().optional(),
 });
 
+// OAuth fields are optional — when clientId is present we skip Dynamic Client
+// Registration and treat the server as pre-registered (for servers that don't
+// advertise /register). scope lets the user override the default requested
+// scopes if the server requires something non-default.
 const HttpServerSchema = z.object({
   type: z.literal('http'),
   url: z.string().url(),
   headers: z.record(z.string()).optional(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
+  scope: z.string().optional(),
 });
 
 const SseServerSchema = z.object({
   type: z.literal('sse'),
   url: z.string().url(),
   headers: z.record(z.string()).optional(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
+  scope: z.string().optional(),
 });
 
 // Http/sse entries carry a literal discriminator; stdio entries may not.

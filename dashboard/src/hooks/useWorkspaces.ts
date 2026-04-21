@@ -350,6 +350,11 @@ export type McpHttpConfigInput = {
   type: 'http' | 'sse';
   url: string;
   headers?: Record<string, string>;
+  // OAuth fields — when clientId is set, Trellis skips Dynamic Client
+  // Registration and treats the server as pre-registered.
+  clientId?: string;
+  clientSecret?: string;
+  scope?: string;
 };
 
 export type McpServerConfigInput = McpStdioConfigInput | McpHttpConfigInput;

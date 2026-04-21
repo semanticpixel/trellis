@@ -3,6 +3,7 @@ import { StdioClientTransport, type StdioServerParameters } from '@modelcontextp
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { auth } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { ToolDefinition } from '../shared/types.js';
 import {
   loadMergedConfig,
@@ -11,6 +12,7 @@ import {
   type MCPTransportType,
   type MergedMCPServer,
 } from './config.js';
+import { TrellisOAuthProvider } from './oauth.js';
 
 const STDERR_RING_SIZE = 200;
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -40,6 +42,9 @@ interface ServerInstance {
   error: string | null;
   pid: number | null;
   stderrTail: string[];
+  // Reused across transport restarts so persisted tokens + pre-registered
+  // client_id stay consistent for the server's lifetime.
+  authProvider: TrellisOAuthProvider | null;
 }
 
 interface WorkspaceMCPState {
@@ -172,6 +177,10 @@ export class MCPManager {
     instance.pid = null;
     instance.client = null;
     instance.transport = null;
+    // Reload rebuilds the auth provider so edits to clientId/clientSecret/scope
+    // in the config actually take effect. Persisted tokens stay untouched —
+    // they live in the encrypted store, not on the provider.
+    instance.authProvider = null;
     state.servers.set(serverName, instance);
     await this.startServer(instance);
     return toStatus(instance);
@@ -204,6 +213,82 @@ export class MCPManager {
     for (const workspaceId of [...this.workspaces.keys()]) {
       await this.shutdownWorkspace(workspaceId);
     }
+  }
+
+  /**
+   * Run the OAuth authorization flow for a server end-to-end. This is the
+   * manual trigger used before PR B's Settings UI lands: POST the matching
+   * route and Trellis will open a browser, await the callback, and persist
+   * tokens. On success the next tool call is authorized without further UI.
+   *
+   * Flow: first `auth()` pass discovers metadata, (optionally) DCRs a
+   * client, starts authorization and redirects via the bridge; we await
+   * the captured code, then a second `auth()` pass exchanges it for
+   * tokens. After that we reload the server so its transport reconnects
+   * with the new tokens.
+   */
+  async authorizeServer(
+    workspaceId: string,
+    workspacePath: string,
+    serverName: string,
+  ): Promise<MCPServerStatus | null> {
+    let state = this.workspaces.get(workspaceId);
+    if (!state) {
+      // No active session — spin up a transient state so the manual
+      // trigger still works (matches the reloadAll pattern).
+      state = {
+        workspaceId,
+        workspacePath,
+        servers: new Map(),
+        activeThreads: new Set(),
+        initPromise: null,
+      };
+      this.workspaces.set(workspaceId, state);
+    }
+
+    const config = await loadMergedConfig(state.workspacePath);
+    const cfg = config[serverName];
+    if (!cfg) throw new Error(`No MCP server named "${serverName}" in merged config`);
+    const transportType = transportTypeOf(cfg);
+    if (transportType === 'stdio') {
+      throw new Error(`OAuth only applies to http/sse servers; "${serverName}" is stdio`);
+    }
+
+    const httpCfg = cfg as {
+      url: string;
+      clientId?: string;
+      clientSecret?: string;
+      scope?: string;
+    };
+
+    // Build (or reuse) an auth provider. We don't rely on the instance's
+    // provider here because the server may not have been spawned yet.
+    const existing = state.servers.get(serverName);
+    const authProvider =
+      existing?.authProvider ??
+      new TrellisOAuthProvider(serverName, {
+        clientId: httpCfg.clientId,
+        clientSecret: httpCfg.clientSecret,
+        scope: httpCfg.scope,
+      });
+
+    const firstPass = await auth(authProvider, { serverUrl: httpCfg.url });
+    if (firstPass === 'AUTHORIZED') {
+      // Existing tokens were fine — nothing to do beyond reloading the
+      // server so stale connections pick them up.
+      return this.reloadServer(workspaceId, serverName);
+    }
+
+    const code = await authProvider.waitForAuthorizationCode();
+    const secondPass = await auth(authProvider, {
+      serverUrl: httpCfg.url,
+      authorizationCode: code,
+    });
+    if (secondPass !== 'AUTHORIZED') {
+      throw new Error(`OAuth flow for "${serverName}" did not complete (got ${secondPass})`);
+    }
+
+    return this.reloadServer(workspaceId, serverName);
   }
 
   // ── Internals ───────────────────────────────────────────────
@@ -267,16 +352,34 @@ export class MCPManager {
 
   private createTransport(instance: ServerInstance, type: MCPTransportType): Transport {
     if (type === 'http' || type === 'sse') {
-      const cfg = instance.config as { url: string; headers?: Record<string, string> };
+      const cfg = instance.config as {
+        url: string;
+        headers?: Record<string, string>;
+        clientId?: string;
+        clientSecret?: string;
+        scope?: string;
+      };
       const headers = resolveHeaders(cfg.headers);
       const url = new URL(cfg.url);
+      // Reuse the same provider instance across reload cycles so persisted
+      // tokens + pre-registered client info aren't thrown away on restart.
+      if (!instance.authProvider) {
+        instance.authProvider = new TrellisOAuthProvider(instance.name, {
+          clientId: cfg.clientId,
+          clientSecret: cfg.clientSecret,
+          scope: cfg.scope,
+        });
+      }
+      const authProvider = instance.authProvider;
       if (type === 'http') {
         return new StreamableHTTPClientTransport(url, {
           requestInit: { headers },
+          authProvider,
         });
       }
       return new SSEClientTransport(url, {
         requestInit: { headers },
+        authProvider,
         // SSEClientTransport ignores the Authorization header on the initial
         // EventSource request unless eventSourceInit explicitly forwards it,
         // so mirror headers into the EventSource fetch override.
@@ -339,6 +442,7 @@ function makeInstance(name: string, config: MergedMCPServer): ServerInstance {
     error: null,
     pid: null,
     stderrTail: [],
+    authProvider: null,
   };
 }
 

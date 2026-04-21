@@ -313,13 +313,18 @@ export function useAdapters() {
 
 // ── MCP Servers ─────────────────────────────────────────────
 
+export type McpTransport = 'stdio' | 'http' | 'sse';
+
 export interface McpServerInfo {
   name: string;
   source: 'workspace' | 'user';
-  command: string;
+  transport: McpTransport;
+  command: string | null;
   args: string[];
   env: Record<string, string>;
   cwd: string | null;
+  url: string | null;
+  headers: Record<string, string>;
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped';
   toolCount: number;
   tools: Array<{ name: string; description: string }>;
@@ -328,12 +333,21 @@ export interface McpServerInfo {
   stderrTail: string[];
 }
 
-export interface McpServerConfigInput {
+export type McpStdioConfigInput = {
+  type?: 'stdio';
   command: string;
   args?: string[];
   env?: Record<string, string>;
   cwd?: string;
-}
+};
+
+export type McpHttpConfigInput = {
+  type: 'http' | 'sse';
+  url: string;
+  headers?: Record<string, string>;
+};
+
+export type McpServerConfigInput = McpStdioConfigInput | McpHttpConfigInput;
 
 export interface McpImportCandidate {
   source: string;

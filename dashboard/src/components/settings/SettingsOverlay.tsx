@@ -18,6 +18,8 @@ import {
   useClaudeCodeCandidates,
   useImportMcpServers,
   type McpServerInfo,
+  type McpServerConfigInput,
+  type McpTransport,
 } from '../../hooks/useWorkspaces';
 import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import { ColorPicker } from '../sidebar/ColorPicker';
@@ -626,12 +628,21 @@ function McpServerCard({
         </div>
       </div>
       <div className={styles.mcpMeta}>
-        <code>{server.command}{server.args.length > 0 ? ` ${server.args.join(' ')}` : ''}</code>
+        {server.transport === 'stdio' ? (
+          <code>
+            {server.command ?? ''}
+            {server.args.length > 0 ? ` ${server.args.join(' ')}` : ''}
+          </code>
+        ) : (
+          <code>
+            {server.transport.toUpperCase()} · {server.url ?? ''}
+          </code>
+        )}
       </div>
       {server.state === 'ready' && (
         <div className={styles.mcpMeta}>
           {server.toolCount} tool{server.toolCount === 1 ? '' : 's'}
-          {server.pid !== null ? ` • pid ${server.pid}` : ''}
+          {server.transport === 'stdio' && server.pid !== null ? ` • pid ${server.pid}` : ''}
         </div>
       )}
       {server.error && (
@@ -639,7 +650,7 @@ function McpServerCard({
           <AlertCircle size={12} /> {server.error}
         </div>
       )}
-      {(server.stderrTail.length > 0 || server.error) && (
+      {server.transport === 'stdio' && (server.stderrTail.length > 0 || server.error) && (
         <button
           className={styles.mcpLogToggle}
           onClick={() => setShowLogs((v) => !v)}
@@ -647,7 +658,7 @@ function McpServerCard({
           {showLogs ? 'Hide' : 'Show'} server stderr ({server.stderrTail.length})
         </button>
       )}
-      {showLogs && server.stderrTail.length > 0 && (
+      {server.transport === 'stdio' && showLogs && server.stderrTail.length > 0 && (
         <pre className={styles.mcpLogs}>{server.stderrTail.join('\n')}</pre>
       )}
     </div>
@@ -687,19 +698,36 @@ function McpServerForm({ server, onDone }: { server?: McpServerInfo; onDone: () 
   const updateServer = useUpdateMcpServer();
 
   const [name, setName] = useState(server?.name ?? '');
+  const [transport, setTransport] = useState<McpTransport>(server?.transport ?? 'stdio');
   const [command, setCommand] = useState(server?.command ?? '');
   const [argsText, setArgsText] = useState(server ? server.args.join(' ') : '');
   const [envText, setEnvText] = useState(
     server ? Object.entries(server.env).map(([k, v]) => `${k}=${v}`).join('\n') : '',
   );
+  const [url, setUrl] = useState(server?.url ?? '');
+  const [headersText, setHeadersText] = useState(
+    server ? Object.entries(server.headers).map(([k, v]) => `${k}: ${v}`).join('\n') : '',
+  );
 
   const handleSubmit = () => {
-    if (!name.trim() || !command.trim()) return;
-    const config = {
-      command: command.trim(),
-      args: splitArgs(argsText),
-      env: parseEnvLines(envText),
-    };
+    if (!name.trim()) return;
+    let config: McpServerConfigInput;
+    if (transport === 'stdio') {
+      if (!command.trim()) return;
+      config = {
+        type: 'stdio',
+        command: command.trim(),
+        args: splitArgs(argsText),
+        env: parseEnvLines(envText),
+      };
+    } else {
+      if (!url.trim()) return;
+      config = {
+        type: transport,
+        url: url.trim(),
+        headers: parseHeaderLines(headersText),
+      };
+    }
     if (server) {
       updateServer.mutate({ name: server.name, config }, { onSuccess: onDone });
     } else {
@@ -720,33 +748,71 @@ function McpServerForm({ server, onDone }: { server?: McpServerInfo; onDone: () 
         />
       </div>
       <div className={styles.formRow}>
-        <label className={styles.label}>Command</label>
-        <input
-          className={styles.input}
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          placeholder="e.g. npx"
-        />
+        <label className={styles.label}>Transport</label>
+        <select
+          className={styles.select}
+          value={transport}
+          onChange={(e) => setTransport(e.target.value as McpTransport)}
+        >
+          <option value="stdio">stdio (local command)</option>
+          <option value="http">http (Streamable HTTP)</option>
+          <option value="sse">sse (Server-Sent Events, legacy)</option>
+        </select>
       </div>
-      <div className={styles.formRow}>
-        <label className={styles.label}>Arguments</label>
-        <input
-          className={styles.input}
-          value={argsText}
-          onChange={(e) => setArgsText(e.target.value)}
-          placeholder='e.g. -y @org/mcp-server "--flag value"'
-        />
-      </div>
-      <div className={styles.formRow}>
-        <label className={styles.label}>Environment (KEY=value per line)</label>
-        <textarea
-          className={styles.textarea}
-          value={envText}
-          onChange={(e) => setEnvText(e.target.value)}
-          placeholder="API_TOKEN=sk-..."
-          rows={3}
-        />
-      </div>
+      {transport === 'stdio' ? (
+        <>
+          <div className={styles.formRow}>
+            <label className={styles.label}>Command</label>
+            <input
+              className={styles.input}
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              placeholder="e.g. npx"
+            />
+          </div>
+          <div className={styles.formRow}>
+            <label className={styles.label}>Arguments</label>
+            <input
+              className={styles.input}
+              value={argsText}
+              onChange={(e) => setArgsText(e.target.value)}
+              placeholder='e.g. -y @org/mcp-server "--flag value"'
+            />
+          </div>
+          <div className={styles.formRow}>
+            <label className={styles.label}>Environment (KEY=value per line)</label>
+            <textarea
+              className={styles.textarea}
+              value={envText}
+              onChange={(e) => setEnvText(e.target.value)}
+              placeholder="API_TOKEN=sk-..."
+              rows={3}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={styles.formRow}>
+            <label className={styles.label}>URL</label>
+            <input
+              className={styles.input}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://mcp.example.com/v1"
+            />
+          </div>
+          <div className={styles.formRow}>
+            <label className={styles.label}>Headers (Key: value per line — use ${'${env:VAR}'} for secrets)</label>
+            <textarea
+              className={styles.textarea}
+              value={headersText}
+              onChange={(e) => setHeadersText(e.target.value)}
+              placeholder={'Authorization: Bearer ${env:CONTEXT7_TOKEN}'}
+              rows={3}
+            />
+          </div>
+        </>
+      )}
       <div className={styles.formActions}>
         <button className={styles.btnSecondary} onClick={onDone}>Cancel</button>
         <button className={styles.btnPrimary} onClick={handleSubmit}>
@@ -761,11 +827,11 @@ function McpImportPanel({
   candidates,
   onDone,
 }: {
-  candidates: Array<{ source: string; servers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> }>;
+  candidates: Array<{ source: string; servers: Record<string, McpServerConfigInput> }>;
   onDone: () => void;
 }) {
   const importMutation = useImportMcpServers();
-  const allServers = new Map<string, { command: string; args?: string[]; env?: Record<string, string> }>();
+  const allServers = new Map<string, McpServerConfigInput>();
   for (const c of candidates) {
     for (const [name, cfg] of Object.entries(c.servers)) {
       if (!allServers.has(name)) allServers.set(name, cfg);
@@ -783,7 +849,7 @@ function McpImportPanel({
   };
 
   const handleImport = () => {
-    const subset: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> = {};
+    const subset: Record<string, McpServerConfigInput> = {};
     for (const name of selected) {
       const cfg = allServers.get(name);
       if (cfg) subset[name] = cfg;
@@ -811,7 +877,7 @@ function McpImportPanel({
           <div>
             <div className={styles.mcpName}>{name}</div>
             <div className={styles.mcpMeta}>
-              <code>{cfg.command}{cfg.args?.length ? ` ${cfg.args.join(' ')}` : ''}</code>
+              <code>{describeCandidate(cfg)}</code>
             </div>
           </div>
         </label>
@@ -828,6 +894,13 @@ function McpImportPanel({
       </div>
     </div>
   );
+}
+
+function describeCandidate(cfg: McpServerConfigInput): string {
+  if ('url' in cfg) {
+    return `${cfg.type.toUpperCase()} · ${cfg.url}`;
+  }
+  return `${cfg.command}${cfg.args?.length ? ` ${cfg.args.join(' ')}` : ''}`;
 }
 
 // Simple whitespace split that respects double-quoted segments — enough for
@@ -854,4 +927,18 @@ function parseEnvLines(input: string): Record<string, string> {
     if (key) env[key] = value;
   }
   return env;
+}
+
+function parseHeaderLines(input: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const line of input.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const idx = trimmed.indexOf(':');
+    if (idx < 0) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim();
+    if (key) headers[key] = value;
+  }
+  return headers;
 }

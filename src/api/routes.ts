@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import type { ServerContext } from './server.js';
 import { existsSync, readdirSync, statSync, appendFileSync } from 'fs';
 import { readFile } from 'fs/promises';
@@ -20,7 +19,8 @@ import {
   loadMergedConfig,
   detectClaudeCodeConfigs,
   MCPServerConfigSchema,
-  type MCPServerConfig,
+  transportTypeOf,
+  type MergedMCPServer,
 } from '../mcp/config.js';
 import { mcpManager } from '../mcp/manager.js';
 
@@ -680,7 +680,7 @@ export function createRoutes(ctx: ServerContext): Router {
   router.get('/mcp/servers', async (req, res) => {
     try {
       const workspaceId = req.query.workspace_id as string | undefined;
-      let merged: Record<string, MCPServerConfig & { source: 'workspace' | 'user' }> = {};
+      let merged: Record<string, MergedMCPServer> = {};
 
       if (workspaceId) {
         const ws = store.getWorkspace(workspaceId);
@@ -701,13 +701,19 @@ export function createRoutes(ctx: ServerContext): Router {
 
       const servers = Object.entries(merged).map(([name, cfg]) => {
         const live = statusMap.get(name);
+        const transport = transportTypeOf(cfg);
+        const stdio = transport === 'stdio' ? (cfg as { command: string; args?: string[]; env?: Record<string, string>; cwd?: string }) : null;
+        const http = transport !== 'stdio' ? (cfg as { url: string; headers?: Record<string, string> }) : null;
         return {
           name,
           source: cfg.source,
-          command: cfg.command,
-          args: cfg.args ?? [],
-          env: cfg.env ?? {},
-          cwd: cfg.cwd ?? null,
+          transport,
+          command: stdio?.command ?? null,
+          args: stdio?.args ?? [],
+          env: stdio?.env ?? {},
+          cwd: stdio?.cwd ?? null,
+          url: http?.url ?? null,
+          headers: http?.headers ?? {},
           state: live?.state ?? 'idle',
           toolCount: live?.toolCount ?? 0,
           tools: live?.tools ?? [],
@@ -841,28 +847,34 @@ export function createRoutes(ctx: ServerContext): Router {
   });
 
   // Import a set of servers into the user-level config. `overwrite=false` skips
-  // existing names; `overwrite=true` replaces them.
+  // existing names; `overwrite=true` replaces them. Per-entry validation so a
+  // single malformed entry doesn't reject the whole batch.
   router.post('/mcp/import', async (req, res) => {
     const { servers, overwrite } = req.body ?? {};
-    const parsed = z.record(MCPServerConfigSchema).safeParse(servers);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
+      res.status(400).json({ error: 'servers must be an object keyed by server name' });
       return;
     }
     try {
       const current = await loadUserConfig();
       let imported = 0;
       let skipped = 0;
-      for (const [name, cfg] of Object.entries(parsed.data)) {
+      const invalid: Array<{ name: string; error: string }> = [];
+      for (const [name, rawCfg] of Object.entries(servers as Record<string, unknown>)) {
+        const parsed = MCPServerConfigSchema.safeParse(rawCfg);
+        if (!parsed.success) {
+          invalid.push({ name, error: parsed.error.issues.map((i) => i.message).join('; ') });
+          continue;
+        }
         if (current.mcpServers[name] && !overwrite) {
           skipped++;
           continue;
         }
-        current.mcpServers[name] = cfg;
+        current.mcpServers[name] = parsed.data;
         imported++;
       }
       await saveUserConfig(current);
-      res.json({ imported, skipped });
+      res.json({ imported, skipped, invalid });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to import MCP servers' });
     }

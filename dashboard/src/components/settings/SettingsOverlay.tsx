@@ -15,6 +15,8 @@ import {
   useDeleteMcpServer,
   useReloadMcpServer,
   useReloadAllMcp,
+  useAuthorizeMcpServer,
+  useSignOutMcpServer,
   useClaudeCodeCandidates,
   useImportMcpServers,
   type McpServerInfo,
@@ -24,7 +26,7 @@ import {
 } from '../../hooks/useWorkspaces';
 import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import { ColorPicker } from '../sidebar/ColorPicker';
-import { X, Trash2, Pencil, Plus, Check, Keyboard, RefreshCw, Download, Server, AlertCircle } from 'lucide-react';
+import { X, Trash2, Pencil, Plus, Check, Keyboard, RefreshCw, Download, Server, AlertCircle, LogIn, LogOut } from 'lucide-react';
 import type { Provider, ProviderType } from '@shared/types';
 import styles from './SettingsOverlay.module.css';
 
@@ -585,11 +587,25 @@ function McpServerCard({
 }) {
   const deleteServer = useDeleteMcpServer();
   const reload = useReloadMcpServer();
+  const authorize = useAuthorizeMcpServer();
+  const signOut = useSignOutMcpServer();
   const [showLogs, setShowLogs] = useState(false);
 
   const stateLabel = describeState(server);
   const canDelete = server.source === 'user';
-  const canReload = !!workspaceId;
+  // Reload makes sense for stdio (process restart) but is redundant on
+  // http/sse — Authorize and Sign-out both reload the server as part of
+  // their flow. Hiding it on OAuth servers keeps the card from having
+  // two buttons that do overlapping things.
+  const canReload = !!workspaceId && server.transport === 'stdio';
+  const isOAuthCapable = server.transport !== 'stdio';
+  // Authorize and Sign-out are mutually exclusive — a server is either
+  // authenticated (and needs Sign-out to reset) or not (and needs
+  // Authorize). Use `ready` as the proxy for "tokens valid": the transport
+  // only connects cleanly when auth succeeded or wasn't required.
+  const showSignOut = isOAuthCapable && server.state === 'ready';
+  const showAuthorize = isOAuthCapable && server.state !== 'ready';
+  const authBusy = authorize.isPending || signOut.isPending;
 
   return (
     <div className={styles.mcpCard}>
@@ -600,6 +616,30 @@ function McpServerCard({
           <span className={styles.mcpSource}>{server.source}</span>
         </div>
         <div className={styles.providerActions}>
+          {showAuthorize && workspaceId && (
+            <button
+              className={styles.iconBtn}
+              onClick={() => authorize.mutate({ name: server.name, workspaceId })}
+              disabled={authBusy}
+              title="Authorize (opens browser for OAuth)"
+            >
+              <LogIn size={14} />
+            </button>
+          )}
+          {showSignOut && workspaceId && (
+            <button
+              className={styles.iconBtn}
+              onClick={() => {
+                if (confirm(`Sign out of "${server.name}" and clear saved OAuth credentials?`)) {
+                  signOut.mutate({ name: server.name, workspaceId });
+                }
+              }}
+              disabled={authBusy}
+              title="Sign out (clear saved tokens)"
+            >
+              <LogOut size={14} />
+            </button>
+          )}
           {canReload && (
             <button
               className={styles.iconBtn}

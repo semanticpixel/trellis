@@ -155,9 +155,9 @@ Currently the notification dot only fires on `thread_status` changes. If the LLM
 
 </details>
 
-### 6. MCP server integration (priority) — **stdio shipped, HTTP/SSE still open (see item 50)**
+### ~~6. MCP server integration (priority)~~ DONE
 
-> **Status (2026-04-20):** Stdio transport landed in commit `4084654` (PR #79). Audit found that HTTP-based MCP servers (the dominant pattern for hosted SaaS — Sourcegraph, Glean, Context7, Coda, etc.) are silently dropped because `MCPServerConfigSchema` requires `command` and `MCPManager` only spawns `StdioClientTransport`. For most users (including this one) HTTP is where the majority of MCP servers live, so item 6 is functionally half-done until item 50 ships.
+> **Status (2026-04-21):** Stdio landed in `4084654` (item 6). HTTP/SSE transport in `4a0a0a9` (item 50). OAuth for hosted servers (Sourcegraph, Glean, Coda, Statsig, Context7, Contentful) in item 51 — see its entry for the shipped set + the quiet-provider invariant. All three together complete the MCP arc.
 
 Trellis only exposes its 5 built-in tools. All MCP servers configured for Claude Code (Atlassian, GitLab, Glean, Context7, Chrome DevTools, Sumologic, etc.) are inaccessible from Trellis, which makes it feel limited for daily use. This is likely the single biggest feature gap.
 
@@ -243,36 +243,89 @@ If the user has a `~/.claude/settings.json` or repo-level `.claude/settings.json
 
 ### 10. File tags (@-mentions in composer)
 
-Cursor / Codex / Claude Code all let you type `@` in the composer to fuzzy-search files in the workspace and insert a reference. Trellis should too — this is one of the most-used features in agent chat.
+**Why:** Cursor / Codex / Claude Code all let you type `@` in the composer to fuzzy-search files and insert a reference. One of the most-used features in agent chat; pairs with MCP because MCP tools often take file paths as input.
 
-**Interaction:**
-- Type `@` in `ChatComposer` → inline dropdown appears above the textarea
-- Dropdown shows fuzzy-matched files from the active repo (or workspace if no repo selected)
-- Tab or Enter inserts the path, dropdown closes
-- Escape dismisses
-- Arrow keys navigate the dropdown
-- Rendered as a pill/chip in the composer: `@src/api/routes.ts` with a small file icon
+**Shape:** User types `@` in `ChatComposer` → overlay dropdown of fuzzy-matched workspace files → arrow keys navigate → Enter/Tab inserts `@path/to/file.ts`. On send, the backend replaces each `@path` token with the file's contents wrapped in `<file>` blocks before calling the LLM. The raw message stored in the DB keeps the `@path` tokens; the rendering layer displays them as pills with a file icon.
 
-**Data:**
-- New backend route: `GET /api/repos/:id/files?q=<query>` — returns up to 20 fuzzy-matched files
-- Use `list_files` logic but with fuzzy ranking (match against filename first, then full path)
-- Exclude `node_modules`, `.git`, `dist`, etc. (reuse existing list-files exclusions)
-- Cache the file list per-workspace with a short TTL (5s) so repeat searches are instant
+**Backend:**
 
-**Context injection:**
-- When the message is sent, replace each `@path` reference with the file's contents wrapped in an XML-ish block, similar to how Cursor does it:
-  ```
-  <file path="src/api/routes.ts">
-  [file contents]
-  </file>
-  ```
-- Multiple `@` references get multiple file blocks
-- Reference the original user prompt text after the file blocks so the model sees the question last
-- If a referenced file doesn't exist anymore, show an error toast and don't send
+New route `GET /api/workspaces/:id/files/search?q=<query>&repo_id=<optional>`:
+- Returns up to 20 fuzzy-matched relative paths. Filename match ranks higher than full-path match.
+- Scope defaults to workspace root; if `repo_id` is provided, scope to that repo's path.
+- Reuses `list-files` exclusions (`.git`, `node_modules`, `dist`, hidden dirs). Walks recursively, capped at ~5000 files.
+- Cached per workspace/repo with a 5s TTL. Invalidation on TTL expiry only — no filesystem watcher yet.
+- Fuzzy: substring match on lowercased path first pass; if empty query, return 20 most-recently-modified files by mtime.
 
-**Stretch:**
-- `@#symbol` for symbol search within files (function/class names) — out of scope for v3
-- `@commit:hash` to reference a git commit diff — nice to have
+Message-send injection — single point of change in `src/session/runner.ts` (wherever user-message content is passed to the adapter):
+
+1. Scan the raw user message for `@path` tokens (regex `@([\w./-]+)` at word boundaries, excluding email-like patterns).
+2. For each unique `@path`, validate against workspace via the existing `validatePath()` helper, read contents. Skip if file missing — surface a `thread_error` WS event and abort the send.
+3. Cap per-file at 200KB. Refuse binary files (null-byte scan in first 8KB).
+4. Prepend file blocks to the message sent to the model; keep the trailing user prompt last:
+   ```
+   <file path="src/api/routes.ts">
+   …contents…
+   </file>
+
+   <original user prompt with @src/api/routes.ts still present>
+   ```
+5. Store the original message unchanged in the DB — `@path` tokens are the canonical form. Expansion is ephemeral.
+
+**Frontend:**
+
+New `MentionDropdown.tsx` in `dashboard/src/components/chat/`:
+- Absolutely positioned above the composer textarea. v1: anchor to textarea top-left with a fixed offset (simple). Upgrade to caret-tracking via a mirror div if it feels wrong.
+- Max 8 visible results, scroll to 20.
+- Row layout: file icon + basename in bold + dimmed parent directory after.
+- Keyboard: ↑/↓ navigate, Enter/Tab inserts, Esc dismisses. Mouse click inserts.
+- Debounced fetch (120ms) on the query text.
+
+New hook `useFileSearch(workspaceId, query)` in `useWorkspaces.ts` — React Query against the new route, stale 5s.
+
+Composer changes:
+- Detect `@` typed at a word boundary (start of string, after whitespace, or after newline). Track `mentionStart` offset in state. Substring from `mentionStart + 1` to the caret is the query.
+- Space, newline, or other non-path char closes the dropdown without inserting.
+- On insert, replace `[mentionStart, caret]` with `@<selected.path>` + trailing space.
+
+Pill rendering in `ChatMessage.tsx`:
+- When rendering a user message, tokenize content by the `@path` regex. Render plain-text spans and `<FileMention>` spans.
+- `FileMention` is a small inline chip — file icon + path. Clickable → fires the existing `ipc:openInEditor` channel.
+- Composer itself stays a plain textarea (no contenteditable) — pills only render in the *sent* message view. Keeps caret handling simple.
+
+**Files:**
+
+New:
+- `dashboard/src/components/chat/MentionDropdown.tsx` + `.module.css`
+- `dashboard/src/components/chat/FileMention.tsx`
+
+Modified:
+- `src/api/routes.ts` — new search route
+- `src/session/runner.ts` — message expansion
+- `src/tools/list-files.ts` or a new `src/tools/search-files.ts` helper — shared fuzzy-search logic
+- `dashboard/src/hooks/useWorkspaces.ts` — `useFileSearch`
+- `dashboard/src/components/chat/ChatComposer.tsx` — @ detection, dropdown integration
+- `dashboard/src/components/chat/ChatMessage.tsx` — pill rendering for user messages
+
+**Acceptance:**
+
+1. Type `@rou` in composer → dropdown shows `src/api/routes.ts` and others, with "routes.ts" bold.
+2. Arrow down + Enter inserts `@src/api/routes.ts ` (trailing space, caret after).
+3. Send the message. Backend logs confirm the message sent to Anthropic has a `<file path="src/api/routes.ts">…</file>` block prepended. Original textarea contents preserved in DB.
+4. User's message renders in the thread with `src/api/routes.ts` as a pill. Clicking the pill opens the file in VS Code via the existing `ipc:openInEditor` path.
+5. Reference a non-existent file → toast error via `thread_error`, message not sent, draft preserved.
+6. Reference 3 files in one message → all 3 file blocks prepended in order they appear in the prompt.
+7. Escape while dropdown is open dismisses without inserting. Typing a space also dismisses.
+
+**Out of scope:**
+- `@#symbol` symbol search within files — defer to v4.
+- `@commit:hash` diff references — nice-to-have, defer.
+- Fuzzy ranker beyond substring (fzf-style scoring) — ship simple, upgrade to `fuse.js` or a scoring function if search feels bad.
+- Drag-and-drop from Finder into composer — related but different input path; not in this item.
+
+**Risk callouts:**
+- **Fuzzy ranker quality:** substring-only will feel crude vs Cursor. Plan to iterate based on feel.
+- **Caret-relative positioning:** mirror-div tracking is the "right" solution but adds complexity. Start with textarea-anchored; upgrade only if it feels wrong.
+- **Large workspaces:** the 5000-file cap will bite in monorepos. If the user hits it, add `.trellisignore` before upgrading the cap.
 
 ### 11. Edit + regenerate
 
@@ -1354,7 +1407,7 @@ if (meta && e.key === 'k' && !e.shiftKey) {
 
 **Out of scope:** Reworking Cmd+K to toggle the search open/closed. Making other global shortcuts guard similarly — only the explicit regression from item 14's brief is in scope here.
 
-### 50. HTTP/SSE transport for MCP servers (completes item 6)
+### ~~50. HTTP/SSE transport for MCP servers (completes item 6)~~ DONE (shipped in `4a0a0a9`; OAuth layer is item 51)
 
 **Symptom:** After item 6 shipped (stdio MCP integration), HTTP-based MCP servers configured in Claude Code (`~/.claude.json`'s `mcpServers` block where entries have `{type: "http", url: ...}` instead of `{command: ...}`) are silently dropped from import candidates and never spawned. For users whose MCP setup is dominated by hosted services (Sourcegraph, Glean, Context7, Coda, Statsig, Sumologic, Contentful, etc.), this means most of their tooling is invisible to Trellis.
 
@@ -1426,7 +1479,27 @@ if (meta && e.key === 'k' && !e.shiftKey) {
 - Header value secret-prompting UI (env var interpolation is enough for v1)
 - Permissions gating (item 8) — MCP tools still auto-execute regardless of transport
 
-### 51. OAuth 2.0 client for HTTP MCP servers (auth follow-up to item 50)
+### ~~51. OAuth 2.0 client for HTTP MCP servers (auth follow-up to item 50)~~ DONE
+
+**Shipped (2026-04-21):**
+- `TrellisOAuthProvider` (`src/mcp/oauth.ts`) with PKCE, DCR, refresh handling, safeStorage persistence via an Electron-main bridge (random port + rotating secret in `~/.trellis/oauth-bridge.json`, 0600).
+- Fixed loopback callback on `127.0.0.1:33418`; "Completing authorization…" page polls `/callback-status` and flips only when the backend POSTs `/oauth/exchange-complete` — prevents false-success UI.
+- `MCPManager.oauthFlowChain` serializes concurrent Authorize clicks through a single promise so the fixed callback port never collides.
+- Discovery state persisted (`saveDiscoveryState` / `discoveryState`) so the SDK's second `auth()` pass reuses the endpoints from the first pass — the missing implementation silently dropped token exchanges.
+- **Quiet/interactive provider split** — transports built during session-init use a quiet `TrellisOAuthProvider` that throws a `TRELLIS_OAUTH_REQUIRED` sentinel from `redirectToAuthorization` instead of opening a browser tab. `runAuthorizeServer` builds a separate interactive provider for the manual Authorize path. Without this, a cold-start chat across N unauthorized HTTP servers cascaded N browser tabs and raced on port 33418. `startServer` catches the sentinel and lands the server in a benign "Needs authorization — use Authorize in Settings" error state.
+- Callback listener grace after success dropped from 5min → 30s so the next flow can rebind the callback port quickly.
+- Cold-start reload bootstraps a transient workspace slot — Reload/Authorize work before any session has touched the workspace.
+- Settings UI (Settings → MCP): single contextual auth button per http/sse server — `state === 'ready'` shows Sign-out (LogOut icon), otherwise Authorize (LogIn icon). Reload is hidden on http/sse because Authorize/Sign-out both reload as part of their flow. Stdio cards unchanged. Hooks: `useAuthorizeMcpServer`, `useSignOutMcpServer` with `['mcp-servers']` invalidation.
+- Backend routes: `POST /api/mcp/servers/:name/authorize`, `DELETE /api/mcp/servers/:name/authorization`. Introduced a `readStringField(req, field)` helper and removed every `as string | undefined` cast in `src/api/routes.ts`.
+
+**Invariant for future work:** session-init MUST use quiet providers. Any new code path that builds a transport during acquire/reload must respect this or the cascade returns.
+
+**Key commits:** `7a44311` (PR A), `877ad05` (discovery state), `c8b57cf` (serialize + cold-start reload), `55f27a6` (quiet provider), plus PR B (Authorize/Sign-out UI) — current working tree.
+
+---
+
+<details>
+<summary>Original spec (historical)</summary>
 
 **Symptom:** After item 50 shipped, calling tools on hosted HTTP MCP servers (Sourcegraph, Glean, Context7, Coda, Statsig, Sumologic, Contentful) fails with:
 ```
@@ -1507,6 +1580,8 @@ Claude Code implements its own `OAuthClientProvider` that:
 - **Browser callback security**: the localhost listener should validate `state` parameter against PKCE state, only accept exactly one callback, then shut down. Otherwise other localhost processes could spoof callbacks.
 - **Port collision**: random free port via `net.createServer().listen(0)` then `address().port` — register dynamic redirect URI with the OAuth client metadata.
 - **MCP spec evolution**: the OAuth spec for MCP is relatively young and evolving. Pin the SDK version once this works.
+
+</details>
 
 ---
 

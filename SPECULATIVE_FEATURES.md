@@ -63,6 +63,133 @@ Each item has:
 
 **Sketch:** Store message state immutably. "Rewind to here" rolls the thread back, forking anything after into a sub-thread.
 
+### Commit message generation (demoted from PLAN-v3 item 35, 2026-04-22)
+
+**Idea:** One-click "Generate commit message" button in the review panel that calls the LLM with the staged diff and returns a conventional-commit-style message.
+
+**Trigger:** Dogfooding shows a recurring manual-commit flow where typing "commit this" in chat feels like overkill. Likely when:
+- You start making more hand-edits outside of an active thread.
+- You want a gated human-reviews-message-before-commit workflow.
+- You're working offline with Ollama and want tight-prompt reliability over free-form agent turns.
+
+**Why demoted:** In Trellis's current workflow, the LLM can commit directly via the `bash` tool — "commit this and open a PR" as a prompt does the whole job. A one-click button saves ~30s vs. one prompt saves the same. Not worth the 1-hour budget when items 11 (edit+regenerate) and 3 (workspace context file) get used every session.
+
+<details>
+<summary>Full spec (ready to implement if promoted back to PLAN-v3)</summary>
+
+#### Shape
+
+User has made changes in a repo. In the review panel's Diff tab, a small **Generate commit message** button sits above the file list. Click → spinner → popover with a generated conventional-commit-style message + **Copy** button. Dismissible via Escape or click-outside.
+
+#### Backend
+
+**New module** `src/review/commit-message.ts`:
+
+```ts
+export async function generateCommitMessage(
+  adapter: LLMAdapter,
+  diff: string,
+  opts: { model: string; maxDiffBytes?: number }
+): Promise<string>
+```
+
+- System prompt (tight): *"Generate a conventional-commit-style message (`type(scope): description` format, where type is one of feat/fix/refactor/docs/test/chore/perf). Keep to one line under 72 characters. Output ONLY the message — no quotes, no explanation, no trailing punctuation."*
+- Streams, accumulates text, trims, returns.
+- `maxTokens: 64` (matches titler pattern in `src/session/titler.ts`).
+- Cap input at 50KB — if diff is larger, slice the first 50KB and append `\n[... diff truncated ...]`. Return `{ truncated: true }`.
+- Empty diff → return `null`.
+
+**New route** `POST /api/repos/:id/generate-commit-message`:
+
+Request body: `{ provider: string, model: string, staged?: boolean }`
+- `provider` + `model` come from the active thread's current selection — frontend forwards them. Decouples from any separate "utility model" setting.
+- `staged` defaults `true`. If `staged: true` and `git diff --cached` is empty, auto-fall-back to unstaged (`git diff`). Both empty → 400 `{error: "No changes to generate a message from"}`.
+
+Response: `{ message: string, truncated: boolean }`.
+
+Handler flow:
+1. Validate repo exists (404 if not).
+2. `getAdapter(provider)` — 400 with clear message if unregistered.
+3. Run `git diff --cached` via `execFile` (add `readStagedDiff(repoPath)` in `src/git/operations.ts`, mirroring existing helpers).
+4. If empty, run `git diff`. If still empty, 400.
+5. Call `generateCommitMessage(adapter, diff, { model })`.
+6. Return the message.
+
+#### Frontend
+
+**Hook** in `dashboard/src/hooks/useReview.ts`:
+```ts
+export function useGenerateCommitMessage() {
+  return useMutation({
+    mutationFn: ({ repoId, provider, model }: { repoId: string; provider: string; model: string }) =>
+      fetchJson<{ message: string; truncated: boolean }>(
+        `${API}/repos/${repoId}/generate-commit-message`,
+        { method: 'POST', body: JSON.stringify({ provider, model }), headers: { 'Content-Type': 'application/json' } },
+      ),
+  });
+}
+```
+No cache invalidation — ephemeral result.
+
+**DiffFileList.tsx** — add a header row above the current file list:
+```
+[Generate commit message]                    (N files, +X -Y)
+```
+- Button disabled when `files.length === 0`.
+- On click, trigger mutation and open a popover anchored to the button.
+
+**New component** `CommitMessagePopover.tsx`:
+- Three states: loading (spinner + "Generating…"), result (editable input + Copy + optional "⚠ diff truncated" note), error (message + Retry).
+- Copy writes via `navigator.clipboard.writeText`, swaps Copy → Copied ✓ for 2s.
+- Escape / click-outside closes.
+- Message is editable in a single-line input so user can tweak before copying.
+
+#### Files
+
+New:
+- `src/review/commit-message.ts`
+- `dashboard/src/components/review/CommitMessagePopover.tsx` + `.module.css`
+
+Modified:
+- `src/git/operations.ts` — `readStagedDiff` / `readWorkingDiff` helpers
+- `src/api/routes.ts` — new endpoint
+- `dashboard/src/hooks/useReview.ts` — `useGenerateCommitMessage`
+- `dashboard/src/components/review/DiffFileList.tsx` — header row
+- `dashboard/src/components/review/DiffFileList.module.css` — header styles
+- `dashboard/src/components/review/DiffTab.tsx` — thread the active thread's `provider`/`model` through
+
+#### Tests
+
+- Unit: `generateCommitMessage` with mock adapter — canned streaming response, assert trimmed/no-quotes/one-line.
+- Unit: 50KB truncation — huge diff, confirm only first 50KB sent + `truncated: true`.
+- Route: mocked `execFile` + mocked adapter; happy path + empty-diff 400 + unregistered-provider 400.
+
+#### Acceptance
+
+1. Edit + stage a file. Click **Generate commit message**. Popover shows a reasonable `feat(auth): add refresh token rotation`-style message.
+2. Click Copy → clipboard has the message. Paste into terminal, `git commit -m "<msg>"` works.
+3. Unstaged edits only → button auto-falls-back to working diff.
+4. No changes at all → button disabled or clean error toast.
+5. Adapter not configured for active thread's provider → clean error in popover, not a 500.
+6. Diff >50KB → message still generated, "⚠ diff truncated" note shown.
+7. Escape / click-outside dismisses.
+
+#### Out of scope
+
+- **"Use in terminal" button.** Threading terminal identity is complex; copy-paste covers daily need.
+- **Auto-commit.** No button that runs `git commit` — too destructive.
+- **Commit body generation.** One-line only for v1.
+- **Multi-commit splitting** ("this wants 3 commits"). Interesting follow-up.
+- **Model override.** Use whatever the active thread uses; don't add a separate "commit model" setting.
+
+#### Risk callouts
+
+- Model variance on format — tight system prompt helps, editable input is the safety valve.
+- Privacy: diff goes to whatever provider is selected. Ollama/local models are the privacy path.
+- Large binary diffs: `git diff --cached` excludes binaries by default; 50KB truncation handles lockfile-sized text diffs.
+
+</details>
+
 ---
 
 ## Cost / observability

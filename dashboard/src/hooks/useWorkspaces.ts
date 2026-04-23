@@ -493,6 +493,26 @@ export function useImportMcpServers() {
   });
 }
 
+// ── File Search (for @-mentions) ────────────────────────────
+
+export function useFileSearch(
+  workspaceId: string | null,
+  query: string,
+  enabled: boolean,
+  repoId?: string | null,
+) {
+  return useQuery<{ results: string[] }>({
+    queryKey: ['file-search', workspaceId, repoId ?? null, query],
+    queryFn: () => {
+      const params = new URLSearchParams({ q: query });
+      if (repoId) params.set('repo_id', repoId);
+      return fetchJson(`${API}/workspaces/${workspaceId}/files/search?${params.toString()}`);
+    },
+    enabled: enabled && !!workspaceId,
+    staleTime: 5_000,
+  });
+}
+
 // ── Thread Search ───────────────────────────────────────────
 
 export function useThreadSearch(query: string) {

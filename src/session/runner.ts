@@ -6,6 +6,7 @@ import { MAX_TOOL_LOOPS } from '../shared/constants.js';
 import { compactMessages, estimateTokens } from './history.js';
 import { generateTitleForThread } from './titler.js';
 import { isMcpToolName, mcpManager } from '../mcp/manager.js';
+import { buildExpandedMessage, expandMentionedFiles } from './file-mentions.js';
 
 export interface RunnerContext {
   store: Store;
@@ -60,6 +61,37 @@ export async function runThread(
         toolName: m.tool_name ?? undefined,
         toolUseId: m.tool_use_id ?? undefined,
       }));
+
+      // Expand @path tokens in user messages. The DB record stays unchanged —
+      // expansion is ephemeral, applied only to the message stream sent to the
+      // adapter. If the most recent user message references a missing or
+      // oversized file, surface a thread_error and abort the send (the user
+      // can edit and resend).
+      let expansionFailed = false;
+      for (let i = 0; i < allMessages.length; i++) {
+        const m = allMessages[i];
+        if (m.role !== 'user' || m.toolUseId) continue;
+        if (!m.content.includes('@')) continue;
+        const expansion = await expandMentionedFiles(m.content, workspacePath);
+        if (!expansion.ok) {
+          // Only abort if this is the most recent user message — older messages
+          // may reference files that have since been deleted; we don't want to
+          // permanently brick a thread for that.
+          const isLastUser = !allMessages.slice(i + 1).some((later) => later.role === 'user' && !later.toolUseId);
+          if (isLastUser) {
+            store.updateThreadStatus(threadId, 'error');
+            broadcast(threadId, 'thread_error', { error: expansion.error });
+            broadcast(threadId, 'thread_status', { status: 'error' });
+            expansionFailed = true;
+            break;
+          }
+          continue;
+        }
+        if (expansion.files.length > 0) {
+          allMessages[i] = { ...m, content: buildExpandedMessage(m.content, expansion.files) };
+        }
+      }
+      if (expansionFailed) return;
 
       // Compact messages if approaching context limit
       const systemPromptTokens = estimateTokens(systemPrompt) + 2000; // ~2k for tool defs

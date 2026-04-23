@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('api', {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   },
 
+  // Editor integration
+  editor: {
+    openFile: (workspacePath, relPath) => ipcRenderer.invoke('editor:openFile', workspacePath, relPath),
+  },
+
   // Application menu events — fired when the user invokes a menu item or
   // its accelerator. Each subscriber returns an unsubscribe function.
   menu: {

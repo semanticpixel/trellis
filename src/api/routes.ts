@@ -23,6 +23,7 @@ import {
   type MergedMCPServer,
 } from '../mcp/config.js';
 import { mcpManager } from '../mcp/manager.js';
+import { searchWorkspaceFiles } from '../tools/search-files.js';
 
 /**
  * Read a string field from either the JSON body or the query string.
@@ -125,6 +126,41 @@ export function createRoutes(ctx: ServerContext): Router {
       missing: !existsSync(repo.path),
     }));
     res.json(result);
+  });
+
+  // ── Workspace File Search (for @-mentions in composer) ────
+
+  router.get('/workspaces/:id/files/search', async (req, res) => {
+    const ws = store.getWorkspace(req.params.id);
+    if (!ws) {
+      res.status(404).json({ error: 'Workspace not found' });
+      return;
+    }
+
+    const query = readStringField(req, 'q') ?? '';
+    const repoId = readStringField(req, 'repo_id');
+
+    let rootPath = ws.path;
+    if (repoId) {
+      const repo = store.getRepo(repoId);
+      if (!repo) {
+        res.status(404).json({ error: 'Repo not found' });
+        return;
+      }
+      rootPath = repo.path;
+    }
+
+    if (!existsSync(rootPath)) {
+      res.status(404).json({ error: 'Search root not found on disk' });
+      return;
+    }
+
+    try {
+      const results = await searchWorkspaceFiles(rootPath, query);
+      res.json({ results });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Search failed' });
+    }
   });
 
   // ── Threads ────────────────────────────────────────────────

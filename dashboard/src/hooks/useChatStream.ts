@@ -69,6 +69,21 @@ export function useChatStream(threadId: string | null): ChatStreamState {
         setError(d.error as string);
         setIsStreaming(false);
         break;
+
+      case 'thread_truncated': {
+        // Optimistically prune the message cache so truncation feels instant.
+        // For edit: fromMessageId is the edited user message — keep it; the
+        // PATCH invalidate refetches its updated content.
+        // For regenerate: fromMessageId is the surviving user message.
+        const fromMessageId = d.fromMessageId as number;
+        if (threadId && typeof fromMessageId === 'number') {
+          qc.setQueryData<Message[]>(['messages', threadId], (prev) =>
+            prev?.filter((m) => m.id <= fromMessageId) ?? [],
+          );
+        }
+        setStreamingText('');
+        break;
+      }
     }
   }, [threadId, qc]);
 

@@ -123,6 +123,39 @@ export function useAbortSession() {
   });
 }
 
+export function useEditMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ threadId, messageId, content }: { threadId: string; messageId: number; content: string }) =>
+      fetchJson<{ message: import('@shared/types').Message; deleted: number }>(
+        `${API}/threads/${threadId}/messages/${messageId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        },
+      ),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['messages', variables.threadId] });
+      qc.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+}
+
+export function useRegenerate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (threadId: string) =>
+      fetchJson<{ deleted: number }>(`${API}/threads/${threadId}/regenerate`, {
+        method: 'POST',
+      }),
+    onSuccess: (_data, threadId) => {
+      qc.invalidateQueries({ queryKey: ['messages', threadId] });
+      qc.invalidateQueries({ queryKey: ['threads'] });
+    },
+  });
+}
+
 // ── Branches ───────────────────────────────────────────────
 
 export interface BranchInfo {

@@ -221,14 +221,14 @@ export function createRoutes(ctx: ServerContext): Router {
     res.status(204).end();
   });
 
-  router.post('/threads/:id/abort', (req, res) => {
+  router.post('/threads/:id/abort', async (req, res) => {
     const thread = store.getThread(req.params.id);
     if (!thread) {
       res.status(404).json({ error: 'Thread not found' });
       return;
     }
     const wasRunning = sessionManager.isRunning(req.params.id);
-    sessionManager.abortSession(req.params.id);
+    await sessionManager.abortSession(req.params.id);
     res.json({ ok: true, wasRunning });
   });
 
@@ -279,6 +279,91 @@ export function createRoutes(ctx: ServerContext): Router {
     });
 
     res.status(201).json(message);
+  });
+
+  // Edit an existing user message, truncate everything after it, then
+  // restart the session to regenerate from the edited point. Only user
+  // messages are editable — assistant/tool edits don't mesh with the
+  // tool-loop model.
+  router.patch('/threads/:threadId/messages/:messageId', async (req, res) => {
+    const { threadId } = req.params;
+    const messageIdNum = parseInt(req.params.messageId, 10);
+    if (!Number.isFinite(messageIdNum)) {
+      res.status(400).json({ error: 'Invalid messageId' });
+      return;
+    }
+
+    const content = readStringField(req, 'content');
+    if (!content) {
+      res.status(400).json({ error: 'content is required' });
+      return;
+    }
+
+    const thread = store.getThread(threadId);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+
+    const existing = store.getMessage(messageIdNum);
+    if (!existing || existing.thread_id !== threadId) {
+      res.status(404).json({ error: 'Message not found in thread' });
+      return;
+    }
+    if (existing.role !== 'user') {
+      res.status(400).json({ error: 'Only user messages can be edited' });
+      return;
+    }
+
+    // Ensure any in-flight runner has fully torn down BEFORE we mutate the
+    // message chain — otherwise the runner's next store.createMessage can
+    // write a zombie row referencing the truncated tail.
+    await sessionManager.abortSession(threadId);
+
+    const deleted = store.deleteMessagesAfterId(threadId, messageIdNum);
+    const updated = store.updateMessageContent(messageIdNum, content);
+    if (!updated) {
+      res.status(404).json({ error: 'Message disappeared during update' });
+      return;
+    }
+
+    broadcast(threadId, 'thread_truncated', { fromMessageId: messageIdNum });
+    broadcast(threadId, 'thread_message', updated);
+
+    sessionManager.startSession(threadId).catch((err) => {
+      console.error(`[trellis] Session error for thread ${threadId}:`, err);
+    });
+
+    res.json({ message: updated, deleted });
+  });
+
+  // Regenerate the last assistant response: truncate everything after the
+  // most recent user message and restart the session.
+  router.post('/threads/:threadId/regenerate', async (req, res) => {
+    const { threadId } = req.params;
+    const thread = store.getThread(threadId);
+    if (!thread) {
+      res.status(404).json({ error: 'Thread not found' });
+      return;
+    }
+
+    const messages = store.listMessages(threadId);
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (!lastUser) {
+      res.status(400).json({ error: 'No user message to regenerate from' });
+      return;
+    }
+
+    await sessionManager.abortSession(threadId);
+
+    const deleted = store.deleteMessagesAfterId(threadId, lastUser.id);
+    broadcast(threadId, 'thread_truncated', { fromMessageId: lastUser.id });
+
+    sessionManager.startSession(threadId).catch((err) => {
+      console.error(`[trellis] Session error for thread ${threadId}:`, err);
+    });
+
+    res.json({ deleted });
   });
 
   // ── Annotations ────────────────────────────────────────────

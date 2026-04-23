@@ -329,10 +329,126 @@ Modified:
 
 ### 11. Edit + regenerate
 
-Standard chat features that are noticeable by their absence:
-- Edit last user message (re-runs the session from that point, clears messages after)
-- Regenerate last assistant response (re-runs with same user message)
-- Fork thread at message — creates a new thread that's a copy up to that point
+**Why:** Standard chat features noticeable by their absence. Edit lets you tweak a prompt and re-run without losing all context; Regenerate lets you re-roll an assistant response without rewriting the user message. Both are daily-use.
+
+**Shape:** Hover-button actions on messages.
+
+- **Edit** on a user message → inline-editable textarea with Save / Cancel. Save truncates everything after the edited message (including its assistant response + tool calls/results), updates the content, restarts the session. Cancel reverts.
+- **Regenerate** on an assistant message → one click truncates from that assistant message onward (preceding user message survives), then restarts the session.
+
+Editing *any* user message (not just the last one) works the same way — truncate after the edited message + restart. Same mechanism, no special-case for the last message.
+
+**Scope note:** Fork thread at message is in SPECULATIVE_FEATURES.md and stays there — promote when demand shows.
+
+**Backend:**
+
+New store methods in `src/db/store.ts`:
+```ts
+deleteMessagesFromId(threadId: string, fromId: number): number    // delete id >= fromId
+deleteMessagesAfterId(threadId: string, afterId: number): number  // delete id >  afterId
+updateMessageContent(messageId: number, content: string): Message | undefined
+```
+- `updateMessageContent` enforces `role = 'user'` — editing assistant/tool messages doesn't mesh with the tool-loop model.
+- All three bump `threads.updated_at`.
+
+New routes in `src/api/routes.ts`:
+
+`PATCH /api/threads/:threadId/messages/:messageId` body `{ content: string }`:
+1. Validate thread + message exist, message is a user message in that thread.
+2. If session is running: `await sessionManager.abortSession(threadId)` — must actually wait for the runner to tear down (see abort-and-wait below).
+3. `store.deleteMessagesAfterId(threadId, messageId)`.
+4. `store.updateMessageContent(messageId, content)`.
+5. Broadcast `thread_truncated` with `{ fromMessageId: messageId }`.
+6. Broadcast `thread_message` with the updated message.
+7. `sessionManager.startSession(threadId)` fire-and-forget.
+8. Return `{ message, deleted: N }`.
+
+`POST /api/threads/:threadId/regenerate` no body:
+1. Find the most recent user message. If none, 400 `{error: "No user message to regenerate from"}`.
+2. If running, `await abortSession`.
+3. `store.deleteMessagesAfterId(threadId, lastUser.id)`.
+4. Broadcast `thread_truncated` with `{ fromMessageId: lastUser.id }`.
+5. `sessionManager.startSession(threadId)` fire-and-forget.
+6. Return `{ deleted: N }`.
+
+New WS event type in `src/shared/types.ts`:
+```ts
+| 'thread_truncated'   // data: { fromMessageId: number }
+```
+Clients drop all cached messages with `id > fromMessageId` so truncation feels instant.
+
+**Abort-and-wait plumbing:** `sessionManager.abortSession` is currently synchronous — just signals the controller. Edit + Regenerate need to wait for tear-down before mutating the DB, otherwise the runner's next `store.createMessage` writes a zombie row referencing a deleted chain. Fix: track a cleanup promise alongside the `AbortController` in `activeSessions`; `abortSession` returns it. `startSession` stores it when spawning `runThread`. ~10 lines in `SessionManager`.
+
+**Frontend:**
+
+Hooks in `dashboard/src/hooks/useWorkspaces.ts`:
+```ts
+useEditMessage()   // mutationFn: PATCH /threads/:id/messages/:messageId
+useRegenerate()    // mutationFn: POST  /threads/:id/regenerate
+```
+Both invalidate `['messages', threadId]` on success.
+
+`useChatStream` (or wherever WS events update message cache): handle `thread_truncated` by optimistically pruning the local cache:
+```ts
+qc.setQueryData<Message[]>(['messages', threadId], prev =>
+  prev?.filter(m => m.id <= fromMessageId) ?? []);
+```
+
+`ChatMessage.tsx` — hover action buttons:
+- User message: `Edit` button (+ optional `Copy`).
+- Assistant message (not tool-call variants): `Regenerate` button (+ optional `Copy`).
+- Small row top-right of the message, visible on hover only (`opacity: 0 → 1`).
+- Disabled when `thread.status === 'running'`.
+
+Edit flow (user message):
+- Click Edit → swap message body for an inline `<textarea>` with current content, auto-sized, Save/Cancel buttons below.
+- Save: call `useEditMessage`; close editor; rely on `thread_truncated` WS event to prune the tail.
+- Cancel: close editor, no mutation.
+- Escape = Cancel, Cmd+Enter = Save.
+- Textarea auto-focuses with caret at end.
+
+Regenerate flow (assistant message):
+- Click Regenerate → immediately fires `useRegenerate(threadId)`. No confirmation — `thread_truncated` makes it responsive, and the composer's abort button already exists for stopping the stream.
+
+**Files:**
+
+Modified only:
+- `src/db/store.ts` — three new methods
+- `src/api/routes.ts` — two new routes
+- `src/session/manager.ts` — return cleanup promise from `abortSession`
+- `src/shared/types.ts` — add `'thread_truncated'` to `WSEventType`
+- `dashboard/src/hooks/useWorkspaces.ts` — two new hooks
+- `dashboard/src/hooks/useChatStream.ts` — handle `thread_truncated`
+- `dashboard/src/components/chat/ChatMessage.tsx` — hover actions + inline edit mode
+- `dashboard/src/components/chat/ChatMessage.module.css` — action-button styles, hover, inline-edit textarea
+
+**Tests:**
+- Unit: `deleteMessagesAfterId` / `deleteMessagesFromId` / `updateMessageContent` — correctness + role guard.
+- Route: `PATCH /threads/:id/messages/:id` — happy path, reject non-user message, reject mismatched thread_id, abort-before-mutate with mocked session manager.
+- Route: `POST /threads/:id/regenerate` — happy path, 400 on no user messages, abort-before-mutate.
+- Frontend: `ChatMessage` edit mode — open, type, Save calls mutation, Cancel reverts.
+
+**Acceptance:**
+
+1. Hover user message → Edit appears. Click → textarea + Save/Cancel. Change text, Save → message updates; later messages disappear; assistant streams a new response from the edited message.
+2. Hover assistant message → Regenerate appears. Click → that message and anything after vanishes; assistant streams a fresh response to the same preceding user message.
+3. Edit mid-thread (not the last user message) → all messages after the edited one are wiped.
+4. Escape cancels edit mode. Cmd+Enter saves.
+5. Edit/Regenerate while streaming → in-flight stream aborts cleanly (no orphan deltas), then the new generation starts.
+6. Annotations survive (they're keyed by `target_ref`, not `message_id`). Verify manually with one present.
+7. `thread_truncated` arrives before the regenerated stream begins — no flicker of stale messages.
+
+**Out of scope:**
+- **Fork thread at message** — in SPECULATIVE_FEATURES.md.
+- **Edit assistant messages** — doesn't mesh with tool-loop model.
+- **Edit history / undo** — old content is gone after save.
+- **Regenerate with different model** — use ModelSelector + Regenerate as two clicks.
+- **Branching / retaining both paths** — that's Fork.
+
+**Risk callouts:**
+- **Abort race:** the main correctness hazard. Without the cleanup-promise fix, truncation can happen mid-iteration and the runner writes a zombie row. Track a cleanup promise — do not use a sleep-before-mutate workaround.
+- **Annotations anchored to diff lines:** unaffected in practice but worth confirming manually.
+- **Composer streaming state:** the stop button is keyed off `isStreaming`. After regenerate fires, the composer should re-enter streaming state via WS events. Earlier debt notes flagged this as flaky — verify.
 
 ### ~~12. LLM-generated titles~~ DONE
 

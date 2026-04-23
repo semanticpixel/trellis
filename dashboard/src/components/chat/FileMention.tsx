@@ -1,3 +1,4 @@
+import { looksLikeFilePath, mentionTokenRegex } from '@shared/mention-regex';
 import styles from './FileMention.module.css';
 
 interface FileMentionProps {
@@ -22,14 +23,6 @@ export function FileMention({ path, onOpen }: FileMentionProps) {
   );
 }
 
-const TOKEN_RE = /(?:^|(?<=[\s(]))@([A-Za-z0-9_./-]+)/g;
-
-/** Returns true if the path looks like a real file mention (has `/` or `.`) — same rule the backend uses. */
-function looksLikeFilePath(path: string): boolean {
-  if (path === '.' || path === '..' || path.startsWith('../')) return false;
-  return path.includes('/') || path.includes('.');
-}
-
 interface Segment {
   kind: 'text' | 'mention';
   value: string;
@@ -39,15 +32,13 @@ interface Segment {
 export function tokenizeMentions(text: string): Segment[] {
   const out: Segment[] = [];
   let lastIndex = 0;
-  TOKEN_RE.lastIndex = 0;
+  const re = mentionTokenRegex();
   let m: RegExpExecArray | null;
-  while ((m = TOKEN_RE.exec(text)) !== null) {
+  while ((m = re.exec(text)) !== null) {
     const path = m[1];
     if (!looksLikeFilePath(path)) continue;
-    // The match starts at m.index, but the token itself starts at the `@`,
-    // which is m.index OR m.index + 1 depending on whether the leading
-    // alternative `^` matched (zero-width) or the lookbehind matched (also
-    // zero-width). Both are zero-width here, so the `@` is always at m.index.
+    // Both alternatives in the leading group are zero-width (the `^` anchor
+    // and the lookbehind), so the `@` is always at m.index.
     const atIdx = m.index;
     if (atIdx > lastIndex) {
       out.push({ kind: 'text', value: text.slice(lastIndex, atIdx) });

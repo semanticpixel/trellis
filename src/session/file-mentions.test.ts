@@ -6,6 +6,7 @@ import {
   buildExpandedMessage,
   expandMentionedFiles,
   extractMentionPaths,
+  type MentionFileCache,
 } from './file-mentions.js';
 
 describe('extractMentionPaths', () => {
@@ -96,6 +97,34 @@ describe('expandMentionedFiles', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.files).toEqual([]);
+  });
+
+  it('memoizes file reads when a cache is passed', async () => {
+    const cache: MentionFileCache = new Map();
+    const first = await expandMentionedFiles('@src/a.ts', workspace, cache);
+    expect(first.ok).toBe(true);
+    expect(cache.size).toBe(1);
+
+    // Mutate the file on disk; with the cache the snapshot should not change.
+    writeFileSync(join(workspace, 'src', 'a.ts'), 'mutated content\n');
+    const second = await expandMentionedFiles('@src/a.ts', workspace, cache);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.files[0].content).toBe('export const a = 1;\n');
+
+    // Without the cache the new read sees the mutation.
+    const third = await expandMentionedFiles('@src/a.ts', workspace);
+    expect(third.ok).toBe(true);
+    if (!third.ok) return;
+    expect(third.files[0].content).toBe('mutated content\n');
+  });
+
+  it('caches failures so a missing file is probed once per run', async () => {
+    const cache: MentionFileCache = new Map();
+    const first = await expandMentionedFiles('@src/missing.ts', workspace, cache);
+    expect(first.ok).toBe(false);
+    expect(cache.size).toBe(1);
+    expect(cache.get('src/missing.ts')?.ok).toBe(false);
   });
 });
 

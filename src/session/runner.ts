@@ -6,7 +6,7 @@ import { MAX_TOOL_LOOPS } from '../shared/constants.js';
 import { compactMessages, estimateTokens } from './history.js';
 import { generateTitleForThread } from './titler.js';
 import { isMcpToolName, mcpManager } from '../mcp/manager.js';
-import { buildExpandedMessage, expandMentionedFiles } from './file-mentions.js';
+import { buildExpandedMessage, expandMentionedFiles, type MentionFileCache } from './file-mentions.js';
 
 export interface RunnerContext {
   store: Store;
@@ -47,6 +47,11 @@ export async function runThread(
   broadcast(threadId, 'thread_stream_start', {});
 
   let loopCount = 0;
+  // Cache @path file reads across tool-loop iterations within this run. Without
+  // it, three @mentions × five iterations = fifteen disk reads of identical
+  // content. Cache is per-runThread so a fresh send picks up edits made between
+  // turns; mid-turn tool edits don't change the snapshot the LLM was given.
+  const mentionCache: MentionFileCache = new Map();
 
   try {
     while (loopCount < MAX_TOOL_LOOPS) {
@@ -72,7 +77,7 @@ export async function runThread(
         const m = allMessages[i];
         if (m.role !== 'user' || m.toolUseId) continue;
         if (!m.content.includes('@')) continue;
-        const expansion = await expandMentionedFiles(m.content, workspacePath);
+        const expansion = await expandMentionedFiles(m.content, workspacePath, mentionCache);
         if (!expansion.ok) {
           // Only abort if this is the most recent user message — older messages
           // may reference files that have since been deleted; we don't want to

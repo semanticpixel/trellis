@@ -41,7 +41,6 @@ export function ChatMessage({ message, onOpenFile, disabled }: ChatMessageProps)
 
   return (
     <div className={`${styles.message} ${isUser ? styles.user : styles.assistant}`}>
-      <div className={styles.role}>{isUser ? 'You' : 'Assistant'}</div>
       <MessageActions message={message} disabled={disabled} onOpenFile={onOpenFile} />
     </div>
   );

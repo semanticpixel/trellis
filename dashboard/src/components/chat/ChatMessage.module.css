@@ -7,6 +7,7 @@
 .user {
   background: var(--bg-message-user);
   max-width: 75%;
+  width: fit-content;
 }
 
 .assistant {
@@ -59,6 +60,7 @@
 
 .editTextarea {
   width: 100%;
+  min-width: 360px;
   min-height: 60px;
   padding: var(--space-sm);
   font-family: inherit;
@@ -118,15 +120,6 @@
 .editCancel:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text-primary);
-}
-
-.role {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .content {

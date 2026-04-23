@@ -1,5 +1,6 @@
+import { useCallback } from 'react';
 import type { Thread, Workspace } from '@shared/types';
-import { useMessages, useSendMessage, useAbortSession } from '../../hooks/useWorkspaces';
+import { useMessages, useSendMessage, useAbortSession, useRepos } from '../../hooks/useWorkspaces';
 import { useChatStream } from '../../hooks/useChatStream';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatComposer } from './ChatComposer';
@@ -44,6 +45,7 @@ export function ChatPanel({
   const { streamingText, isStreaming, error } = useChatStream(threadId);
   const sendMessage = useSendMessage();
   const abortSession = useAbortSession();
+  const { data: repos } = useRepos(thread?.workspace_id ?? undefined);
 
   const handleSend = (content: string) => {
     if (!threadId) return;
@@ -54,6 +56,20 @@ export function ChatPanel({
     if (!threadId) return;
     abortSession.mutate(threadId);
   };
+
+  // Resolve a thread's effective root (repo path if scoped, workspace path otherwise)
+  // and ask the main process to open the file in the user's editor.
+  const handleOpenFile = useCallback(
+    (path: string) => {
+      if (!thread) return;
+      const ws = workspaces.find((w) => w.id === thread.workspace_id);
+      if (!ws) return;
+      const repo = thread.repo_id ? repos?.find((r) => r.id === thread.repo_id) : undefined;
+      const root = repo?.path ?? ws.path;
+      window.api?.editor?.openFile(root, path);
+    },
+    [thread, workspaces, repos],
+  );
 
   if (!thread) {
     return (
@@ -107,6 +123,7 @@ export function ChatPanel({
           messages={messages ?? []}
           streamingText={streamingText}
           isStreaming={isStreaming}
+          onOpenFile={handleOpenFile}
         />
       )}
 
@@ -115,6 +132,8 @@ export function ChatPanel({
       <ChatComposer
         key={thread.id}
         threadId={thread.id}
+        workspaceId={thread.workspace_id}
+        repoId={thread.repo_id}
         onSend={handleSend}
         disabled={isStreaming || sendMessage.isPending}
         isStreaming={isStreaming}

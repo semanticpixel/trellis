@@ -7,9 +7,10 @@ interface ChatMessageListProps {
   messages: Message[];
   streamingText: string;
   isStreaming: boolean;
+  onOpenFile?: (path: string) => void;
 }
 
-export function ChatMessageList({ messages, streamingText, isStreaming }: ChatMessageListProps) {
+export function ChatMessageList({ messages, streamingText, isStreaming, onOpenFile }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,7 +20,7 @@ export function ChatMessageList({ messages, streamingText, isStreaming }: ChatMe
   return (
     <div className={styles.list}>
       {messages.map((msg) => (
-        <ChatMessage key={msg.id} message={msg} />
+        <ChatMessage key={msg.id} message={msg} onOpenFile={onOpenFile} />
       ))}
 
       {isStreaming && streamingText && (

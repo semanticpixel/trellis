@@ -72,3 +72,9 @@
 .codeLine {
   display: inline;
 }
+
+.userText {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

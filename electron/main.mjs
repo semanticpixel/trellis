@@ -534,6 +534,33 @@ async function registerPersistedAdapters() {
 
 // ── Native Dialogs ────────────────────────────────────────────
 
+// Open a workspace file in the user's editor. Tries the `vscode://file/...`
+// URL handler first (works for VS Code, Cursor, and most VS Code forks);
+// falls back to `shell.openPath` (OS default) if that returns an error.
+// `relPath` is joined under `workspacePath` and re-validated to refuse
+// traversal — the renderer is trusted but defense in depth is cheap.
+ipcMain.handle('editor:openFile', async (_event, workspacePath, relPath) => {
+  if (typeof workspacePath !== 'string' || typeof relPath !== 'string') {
+    return { ok: false, error: 'workspacePath and relPath must be strings' };
+  }
+  const absPath = join(workspacePath, relPath);
+  const normalizedRoot = workspacePath.endsWith('/') ? workspacePath : workspacePath + '/';
+  if (!absPath.startsWith(normalizedRoot) && absPath !== workspacePath) {
+    return { ok: false, error: 'Path is outside workspace' };
+  }
+  if (!existsSync(absPath)) {
+    return { ok: false, error: 'File not found' };
+  }
+  try {
+    await shell.openExternal(`vscode://file/${absPath}`);
+    return { ok: true };
+  } catch {
+    const fallbackErr = await shell.openPath(absPath);
+    if (fallbackErr) return { ok: false, error: fallbackErr };
+    return { ok: true };
+  }
+});
+
 ipcMain.handle('dialog:openDirectory', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory', 'createDirectory'],

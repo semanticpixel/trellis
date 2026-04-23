@@ -1,17 +1,19 @@
 import type { Message } from '@shared/types';
 import type { ThemedToken } from 'shiki';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { ToolCallBlock } from './ToolCallBlock';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { highlightCode, languageFromMarkdownClass } from '../../utils/highlighter';
+import { FileMention, tokenizeMentions } from './FileMention';
 import styles from './ChatMessage.module.css';
 
 interface ChatMessageProps {
   message: Message;
+  onOpenFile?: (path: string) => void;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, onOpenFile }: ChatMessageProps) {
   if (message.role === 'assistant' && message.tool_use_id) {
     return (
       <ToolCallBlock
@@ -38,23 +40,42 @@ export function ChatMessage({ message }: ChatMessageProps) {
     <div className={`${styles.message} ${isUser ? styles.user : styles.assistant}`}>
       <div className={styles.role}>{isUser ? 'You' : 'Assistant'}</div>
       <div className={styles.content}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            code({ className, children, ...props }) {
-              const isInline = !className;
-              if (isInline) {
-                return <code className={styles.inlineCode} {...props}>{children}</code>;
-              }
-              const text = String(children).replace(/\n$/, '');
-              return <ShikiCodeBlock code={text} className={className} />;
-            },
-          }}
-        >
-          {message.content}
-        </ReactMarkdown>
+        {isUser ? (
+          <UserMessageContent text={message.content} onOpenFile={onOpenFile} />
+        ) : (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({ className, children, ...props }) {
+                const isInline = !className;
+                if (isInline) {
+                  return <code className={styles.inlineCode} {...props}>{children}</code>;
+                }
+                const text = String(children).replace(/\n$/, '');
+                return <ShikiCodeBlock code={text} className={className} />;
+              },
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        )}
       </div>
     </div>
+  );
+}
+
+function UserMessageContent({ text, onOpenFile }: { text: string; onOpenFile?: (path: string) => void }) {
+  const segments = tokenizeMentions(text);
+  return (
+    <p className={styles.userText}>
+      {segments.map((seg, i) =>
+        seg.kind === 'mention' ? (
+          <FileMention key={i} path={seg.value} onOpen={onOpenFile} />
+        ) : (
+          <Fragment key={i}>{seg.value}</Fragment>
+        ),
+      )}
+    </p>
   );
 }
 

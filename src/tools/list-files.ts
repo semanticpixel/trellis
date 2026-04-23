@@ -2,6 +2,7 @@ import { readdir, stat } from 'fs/promises';
 import { resolve, relative } from 'path';
 import type { Tool } from './types.js';
 import { validatePath } from './validate-path.js';
+import { isExcludedEntry } from './search-files.js';
 
 export const listFilesTool: Tool = {
   definition: {
@@ -64,7 +65,7 @@ async function listDir(
       entries.push(`... (truncated at ${MAX_ENTRIES} entries)`);
       break;
     }
-    if (item.startsWith('.') || item === 'node_modules') continue;
+    if (isExcludedEntry(item)) continue;
 
     const fullPath = resolve(dir, item);
     const stats = await stat(fullPath).catch(() => null);

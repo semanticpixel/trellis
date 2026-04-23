@@ -16,6 +16,9 @@ interface Window {
     dialog: {
       openDirectory: () => Promise<string | null>;
     };
+    editor: {
+      openFile: (workspacePath: string, relPath: string) => Promise<{ ok: boolean; error?: string }>;
+    };
     menu: {
       onToggleTerminal: (cb: () => void) => () => void;
       onToggleReview: (cb: () => void) => () => void;

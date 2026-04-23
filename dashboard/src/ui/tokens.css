@@ -25,6 +25,9 @@
   /* Transitions */
   --transition-fast: 100ms ease;
   --transition-normal: 200ms ease;
+
+  /* Layout */
+  --content-max-width: 960px;
 }
 
 /* ── Light Theme ────────────────────────────────────────────── */

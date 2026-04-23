@@ -1,6 +1,8 @@
 .composer {
   padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--border-primary);
+  width: min(var(--content-max-width), 100%);
+  margin-inline: auto;
 }
 
 .inputWrap {

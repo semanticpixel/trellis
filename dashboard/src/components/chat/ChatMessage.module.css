@@ -1,6 +1,7 @@
 .message {
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-lg);
+  position: relative;
 }
 
 .user {
@@ -10,6 +11,113 @@
 
 .assistant {
   background: var(--bg-message-assistant);
+}
+
+.actions {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-sm);
+  display: flex;
+  gap: var(--space-xs);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.message:hover .actions,
+.message:focus-within .actions {
+  opacity: 1;
+}
+
+.actionButton {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.actionButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-secondary);
+}
+
+.actionButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.editBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.editTextarea {
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-sm);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.editTextarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.editSave,
+.editCancel {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid var(--border-primary);
+}
+
+.editSave {
+  background: var(--accent);
+  color: var(--text-inverse);
+  border-color: var(--accent);
+}
+
+.editSave:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.editSave:disabled,
+.editCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.editCancel {
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.editCancel:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .role {

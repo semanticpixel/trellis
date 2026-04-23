@@ -266,6 +266,41 @@ export class Store {
     return this.db.prepare('SELECT * FROM messages WHERE id = ?').get(result.lastInsertRowid) as Message;
   }
 
+  getMessage(messageId: number): Message | undefined {
+    return this.db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId) as Message | undefined;
+  }
+
+  deleteMessagesFromId(threadId: string, fromId: number): number {
+    const result = this.db.prepare(
+      'DELETE FROM messages WHERE thread_id = ? AND id >= ?'
+    ).run(threadId, fromId);
+    if (result.changes > 0) {
+      this.db.prepare('UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(threadId);
+    }
+    return result.changes;
+  }
+
+  deleteMessagesAfterId(threadId: string, afterId: number): number {
+    const result = this.db.prepare(
+      'DELETE FROM messages WHERE thread_id = ? AND id > ?'
+    ).run(threadId, afterId);
+    if (result.changes > 0) {
+      this.db.prepare('UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(threadId);
+    }
+    return result.changes;
+  }
+
+  updateMessageContent(messageId: number, content: string): Message | undefined {
+    const existing = this.getMessage(messageId);
+    if (!existing) return undefined;
+    if (existing.role !== 'user') {
+      throw new Error('updateMessageContent only accepts user messages');
+    }
+    this.db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(content, messageId);
+    this.db.prepare('UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(existing.thread_id);
+    return this.getMessage(messageId);
+  }
+
   // ── Annotations ────────────────────────────────────────────
 
   listAnnotations(threadId: string, unresolvedOnly = false): Annotation[] {

@@ -99,6 +99,7 @@ export type WSEventType =
   | 'thread_status'
   | 'thread_update'
   | 'thread_error'
+  | 'thread_truncated'
   | 'repo_update'
   | 'workspace_update'
   | 'terminal_output'

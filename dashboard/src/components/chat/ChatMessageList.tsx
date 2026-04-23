@@ -20,7 +20,12 @@ export function ChatMessageList({ messages, streamingText, isStreaming, onOpenFi
   return (
     <div className={styles.list}>
       {messages.map((msg) => (
-        <ChatMessage key={msg.id} message={msg} onOpenFile={onOpenFile} />
+        <ChatMessage
+          key={msg.id}
+          message={msg}
+          onOpenFile={onOpenFile}
+          disabled={isStreaming}
+        />
       ))}
 
       {isStreaming && streamingText && (

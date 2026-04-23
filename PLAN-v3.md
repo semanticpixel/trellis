@@ -969,30 +969,9 @@ Implemented in commit `b2917e0` (PR #57). Added `ErrorBoundary` class component 
 
 **Out of scope:** Video, PDF, or non-image attachments.
 
-### 35. Commit message generation
+### ~~35. Commit message generation~~ MOVED to SPECULATIVE_FEATURES.md (2026-04-22)
 
-**What:** After a session that modified files, a "Generate commit message" button in the diff viewer that calls the LLM with the staged diff and returns a conventional-commit-style message.
-
-**Why:** Natural endpoint for an LLM coding session. You've already loaded the diff in the review panel; generating a good commit message from it is a 10-second LLM call that saves a minute of manual writing.
-
-**Implementation:**
-1. Backend: `POST /api/repos/:id/generate-commit-message`
-   - Takes `staged: boolean` flag (default true)
-   - Reads `git diff --cached` (or `git diff` if not staged)
-   - Calls LLM with a tight system prompt: "Generate a conventional-commit-style message (type: description) summarizing this diff. Keep to one line under 72 chars. No body."
-   - Returns the generated string
-2. Frontend: "Generate commit message" button in `DiffFileList` header
-3. On click: show spinner, then a small popover with the generated message + Copy button + "Use in terminal" (runs `git commit -m "<msg>"` via terminal IPC)
-
-**Files to touch:**
-- `src/api/routes.ts` — new endpoint
-- `src/review/commit-message.ts` (new) — system prompt + LLM call
-- `dashboard/src/components/review/DiffFileList.tsx` — button + popover
-- `dashboard/src/hooks/useReview.ts` — mutation hook
-
-**Acceptance:** After editing a file, click the button, see a reasonable commit message generated. Copy it, paste into terminal, commit works.
-
-**Out of scope:** Auto-committing, commit body generation, multi-commit splitting.
+Demoted because Trellis's `bash` tool already lets the LLM commit directly — "commit this and open a PR" as a prompt does the job. A one-click button saves ~30s vs. one prompt saves the same; not worth the 1-hour budget while items 11 and 3 get used every session. Full spec preserved in SPECULATIVE_FEATURES.md → "Commit message generation" — ready to implement if dogfooding surfaces a manual-commit flow.
 
 ### ~~36. Keyboard shortcut reference (Cmd+/ or Cmd+?)~~ DONE
 

@@ -56,14 +56,14 @@ export function Sidebar({ activeThreadId, onSelectThread, onOpenSettings, notifi
             onClick={() => setViewMode('tree')}
             title="Tree view"
           >
-            <GitBranch size={13} />
+            <GitBranch size={14} />
           </button>
           <button
             className={`${styles.viewToggle} ${viewMode === 'flat' ? styles.viewToggleActive : ''}`}
             onClick={() => setViewMode('flat')}
             title="Flat view"
           >
-            <List size={13} />
+            <List size={14} />
           </button>
         </div>
       </div>

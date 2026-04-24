@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { PanelRightOpen, PanelRightClose } from 'lucide-react';
 import type { Thread, Workspace } from '@shared/types';
 import { useMessages, useSendMessage, useAbortSession, useRepos } from '../../hooks/useWorkspaces';
 import { useChatStream } from '../../hooks/useChatStream';
@@ -77,8 +78,13 @@ export function ChatPanel({
         <div className={styles.header}>
           <span className={styles.threadTitle}>No thread selected</span>
           <div className={styles.actions}>
-            <button className={styles.reviewToggle} onClick={onToggleReview} title="Toggle review panel">
-              {reviewOpen ? '\u25E7' : '\u25E8'}
+            <button
+              className={styles.reviewToggle}
+              onClick={onToggleReview}
+              title={reviewOpen ? 'Close review panel' : 'Open review panel'}
+              aria-label={reviewOpen ? 'Close review panel' : 'Open review panel'}
+            >
+              {reviewOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
           </div>
         </div>
@@ -102,8 +108,13 @@ export function ChatPanel({
         </div>
         <div className={styles.actions}>
           <ModelSelector provider={thread.provider} model={thread.model} threadId={thread.id} />
-          <button className={styles.reviewToggle} onClick={onToggleReview} title="Toggle review panel">
-            {reviewOpen ? '\u25E7' : '\u25E8'}
+          <button
+            className={styles.reviewToggle}
+            onClick={onToggleReview}
+            title={reviewOpen ? 'Close review panel' : 'Open review panel'}
+            aria-label={reviewOpen ? 'Close review panel' : 'Open review panel'}
+          >
+            {reviewOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
           </button>
         </div>
       </div>

@@ -1,12 +1,18 @@
+/* `.list` is the full-width scroll container so the scrollbar hugs the
+ * right edge of the chat pane. Visible content is centered and capped by
+ * `.inner`. */
 .list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-lg);
+}
+
+.inner {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  width: min(var(--content-max-width), 100%);
+  gap: var(--space-lg);
+  width: min(var(--content-width), 100% - var(--content-padding) * 2);
   margin-inline: auto;
+  padding-block: var(--content-padding);
 }
 
 .streaming {

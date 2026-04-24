@@ -48,18 +48,25 @@
   -webkit-app-region: no-drag;
 }
 
+/* Matches the sidebar's `.viewToggle` for a consistent icon-button style
+ * across the app chrome (Flat/Tree toggle + review-panel toggle). */
 .reviewToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   background: transparent;
-  border: 1px solid var(--border-primary);
+  border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
   cursor: pointer;
-  padding: var(--space-xs) var(--space-sm);
-  font-size: 16px;
+  color: var(--text-tertiary);
+  -webkit-app-region: no-drag;
 }
 
 .reviewToggle:hover {
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .empty {

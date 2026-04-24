@@ -1,53 +1,72 @@
+/* Wrapper that stacks the message bubble with its action row below. */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.rowUser {
+  align-items: flex-end;
+}
+
+.rowAssistant {
+  align-items: flex-start;
+}
+
+/* `.message` is a layout hook; visual bubble styling is scoped to `.user`
+ * since `--bg-message-assistant` matches the canvas and the bubble would
+ * be invisible. Assistant content renders directly on the canvas. */
 .message {
-  padding: var(--space-md) var(--space-lg);
-  border-radius: var(--radius-lg);
-  position: relative;
+  /* no defaults — variants supply their own padding/background */
 }
 
 .user {
   background: var(--bg-message-user);
   max-width: 75%;
   width: fit-content;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  border-end-end-radius: 0;
 }
 
 .assistant {
-  background: var(--bg-message-assistant);
+  /* No padding, no background — sits on the canvas. */
 }
 
 .actions {
-  position: absolute;
-  top: var(--space-xs);
-  right: var(--space-sm);
   display: flex;
   gap: var(--space-xs);
   opacity: 0;
   transition: opacity 120ms ease;
 }
 
-.message:hover .actions,
-.message:focus-within .actions {
+/* Reveal actions on hover over the whole row (bubble + action slot). */
+.row:hover .actions,
+.row:focus-within .actions {
   opacity: 1;
 }
 
-.actionButton {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-tertiary);
+  border: 1px solid transparent;
   cursor: pointer;
-  font-family: inherit;
 }
 
-.actionButton:hover:not(:disabled) {
+.iconButton:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--border-secondary);
+  border-color: var(--border-primary);
 }
 
-.actionButton:disabled {
+.iconButton:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }

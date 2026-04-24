@@ -1,7 +1,13 @@
+/* `.composer` spans the full chat pane so its top border runs edge-to-edge.
+ * The actual input is centered and capped at `--content-width` via
+ * `.inner`. */
 .composer {
-  padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--border-primary);
-  width: min(var(--content-max-width), 100%);
+}
+
+.inner {
+  padding-block: var(--space-md);
+  width: min(var(--content-width), 100% - var(--content-padding) * 2);
   margin-inline: auto;
 }
 

@@ -218,7 +218,8 @@ export function ChatComposer({
 
   return (
     <div className={styles.composer}>
-      <div className={styles.inputWrap}>
+      <div className={styles.inner}>
+        <div className={styles.inputWrap}>
         {mention !== null && (
           <MentionDropdown
             results={results}
@@ -251,6 +252,7 @@ export function ChatComposer({
             <span className={styles.stopIcon} aria-hidden="true" />
           </button>
         )}
+        </div>
       </div>
     </div>
   );

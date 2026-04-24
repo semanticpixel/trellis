@@ -1,6 +1,7 @@
 import type { Message } from '@shared/types';
 import type { ThemedToken } from 'shiki';
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Pencil, RefreshCw } from 'lucide-react';
 import { ToolCallBlock } from './ToolCallBlock';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,9 +15,23 @@ interface ChatMessageProps {
   onOpenFile?: (path: string) => void;
   /** When true, Edit/Regenerate are disabled (e.g. stream in flight). */
   disabled?: boolean;
+  /** True only for the most recent user message — gates the Edit button. */
+  isLastUser?: boolean;
+  /** True only for the most recent assistant-text message — gates Regenerate. */
+  isLastAssistant?: boolean;
 }
 
-export function ChatMessage({ message, onOpenFile, disabled }: ChatMessageProps) {
+export function ChatMessage({
+  message,
+  onOpenFile,
+  disabled,
+  isLastUser,
+  isLastAssistant,
+}: ChatMessageProps) {
+  const [editing, setEditing] = useState(false);
+  const editMessage = useEditMessage();
+  const regenerate = useRegenerate();
+
   if (message.role === 'assistant' && message.tool_use_id) {
     return (
       <ToolCallBlock
@@ -38,93 +53,83 @@ export function ChatMessage({ message, onOpenFile, disabled }: ChatMessageProps)
   }
 
   const isUser = message.role === 'user';
-
-  return (
-    <div className={`${styles.message} ${isUser ? styles.user : styles.assistant}`}>
-      <MessageActions message={message} disabled={disabled} onOpenFile={onOpenFile} />
-    </div>
-  );
-}
-
-interface MessageActionsProps {
-  message: Message;
-  disabled?: boolean;
-  onOpenFile?: (path: string) => void;
-}
-
-function MessageActions({ message, disabled, onOpenFile }: MessageActionsProps) {
-  const [editing, setEditing] = useState(false);
-  const editMessage = useEditMessage();
-  const regenerate = useRegenerate();
-  const isUser = message.role === 'user';
-  // Ephemeral streaming message has id === -1; don't show actions on it.
+  // Ephemeral streaming message has id === -1; no actions on it.
   const isPersisted = message.id > 0;
+  const showEdit = isUser && isPersisted && isLastUser;
+  const showRegenerate = !isUser && isPersisted && isLastAssistant;
 
-  if (editing && isUser) {
+  if (editing && showEdit) {
     return (
-      <EditBox
-        initial={message.content}
-        onSave={(content) => {
-          editMessage.mutate(
-            { threadId: message.thread_id, messageId: message.id, content },
-            { onSuccess: () => setEditing(false) },
-          );
-        }}
-        onCancel={() => setEditing(false)}
-        saving={editMessage.isPending}
-      />
+      <div className={`${styles.row} ${styles.rowUser}`}>
+        <EditBox
+          initial={message.content}
+          onSave={(content) => {
+            editMessage.mutate(
+              { threadId: message.thread_id, messageId: message.id, content },
+              { onSuccess: () => setEditing(false) },
+            );
+          }}
+          onCancel={() => setEditing(false)}
+          saving={editMessage.isPending}
+        />
+      </div>
     );
   }
 
   return (
-    <>
-      <div className={styles.content}>
-        {isUser ? (
-          <UserMessageContent text={message.content} onOpenFile={onOpenFile} />
-        ) : (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, ...props }) {
-                const isInline = !className;
-                if (isInline) {
-                  return <code className={styles.inlineCode} {...props}>{children}</code>;
-                }
-                const text = String(children).replace(/\n$/, '');
-                return <ShikiCodeBlock code={text} className={className} />;
-              },
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
-        )}
-      </div>
-      {isPersisted && (
-        <div className={styles.actions}>
+    <div className={`${styles.row} ${isUser ? styles.rowUser : styles.rowAssistant}`}>
+      <div className={`${styles.message} ${isUser ? styles.user : styles.assistant}`}>
+        <div className={styles.content}>
           {isUser ? (
+            <UserMessageContent text={message.content} onOpenFile={onOpenFile} />
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ className, children, ...props }) {
+                  const isInline = !className;
+                  if (isInline) {
+                    return <code className={styles.inlineCode} {...props}>{children}</code>;
+                  }
+                  const text = String(children).replace(/\n$/, '');
+                  return <ShikiCodeBlock code={text} className={className} />;
+                },
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          )}
+        </div>
+      </div>
+      {(showEdit || showRegenerate) && (
+        <div className={styles.actions}>
+          {showEdit && (
             <button
               type="button"
-              className={styles.actionButton}
+              className={styles.iconButton}
               onClick={() => setEditing(true)}
               disabled={disabled}
               title="Edit message"
+              aria-label="Edit message"
             >
-              Edit
+              <Pencil size={14} />
             </button>
-          ) : (
+          )}
+          {showRegenerate && (
             <button
               type="button"
-              className={styles.actionButton}
+              className={styles.iconButton}
               onClick={() => regenerate.mutate(message.thread_id)}
               disabled={disabled || regenerate.isPending}
               title="Regenerate response"
+              aria-label="Regenerate response"
             >
-              Regenerate
+              <RefreshCw size={14} />
             </button>
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

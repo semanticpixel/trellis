@@ -4,7 +4,7 @@
 
 ## How to use this file
 
-**Different from PLAN-v3.** PLAN-v3 is for features and architectural work — spec'd out with Symptom/Cause/Fix/Files/Acceptance. This file is for visual observations:
+**Different from PLAN.** PLAN is for features and architectural work — spec'd out with Symptom/Cause/Fix/Files/Acceptance. This file is for visual observations:
 
 - Add an entry the moment you notice something
 - Include: what you saw, which file probably owns it (guess if unsure), and what "good" would look like
@@ -20,7 +20,7 @@
 - **Target:** what it should look/feel like
 ```
 
-**Promote to PLAN-v3 when:** the fix is actually an architectural change (e.g. "rework how the review panel lays out") — that belongs as a real plan item, not a polish note.
+**Promote to PLAN when:** the fix is actually an architectural change (e.g. "rework how the review panel lays out") — that belongs as a real plan item, not a polish note.
 
 ---
 
@@ -42,9 +42,9 @@
 - **Target:** Decide between three options based on dogfooding friction:
   - **(a) Remove entirely.** If bulk-start is rarely useful, delete the button and the `/mcp/reload-all` endpoint. Simplest.
   - **(b) Split into "Start all stdio" + per-server authorize.** Stdio spawns are instant/headless. HTTP/SSE should always be per-server opt-in. Captures the useful case without the OAuth tab-storm.
-  - **(c) Keep as-is but gate behind confirmation.** "This will open N browser tabs for authorization, continue?" plus require item 52 (serialize OAuth callback port) to be implemented first.
-- **Decision depends on:** whether bulk-start ever feels useful during real daily use. If you never click Reload All intentionally, go with (a). If you click it after config imports, go with (b). If it genuinely helps recovery scenarios, (c) with item 52 as a prerequisite.
-- **Linked item:** Item 52 (serialize OAuth flows / fix EADDRINUSE) in PLAN-v3 becomes required only if we keep Reload All. If we remove it, item 52 can be dropped.
+  - **(c) Keep as-is but gate behind confirmation.** "This will open N browser tabs for authorization, continue?" — item 51 (serialize OAuth callback port) is the prerequisite, and it's already DONE.
+- **Decision depends on:** whether bulk-start ever feels useful during real daily use. If you never click Reload All intentionally, go with (a). If you click it after config imports, go with (b). If it genuinely helps recovery scenarios, (c) is unblocked since item 51 already shipped.
+- **Linked item:** Item 51 (serialize OAuth flows / fix EADDRINUSE) in PLAN shipped in `c8b57cf`, so the prerequisite for (c) is satisfied.
 
 ### Button alignment inconsistencies
 - **Where:** multiple components — log specific spots below as they're spotted
@@ -56,12 +56,12 @@
 
 ---
 
-## Promoted to PLAN-v3
+## Promoted to PLAN
 
-_(When an item grows into architectural work, move it here with a pointer — e.g. "Moved to PLAN-v3 item 50.")_
+_(When an item grows into architectural work, move it here with a pointer — e.g. "Moved to PLAN item 50.")_
 
 ---
 
 ## Done
 
-_(Move entries here with a one-line recap + commit when fixed, same as PLAN-v3.)_
+_(Move entries here with a one-line recap + commit when fixed, same as PLAN.)_

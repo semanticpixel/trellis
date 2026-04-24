@@ -82,6 +82,18 @@ pnpm test               # Vitest test suite
 pnpm run rebuild:native
 ```
 
+The project pins Node via `.nvmrc`. Run `pnpm install` / `pnpm run rebuild:native` from a shell where `node --version` matches that pin — otherwise the compiled ABI won't match the one Electron's backend subprocess launches with, and you'll see `NODE_MODULE_VERSION` errors at runtime.
+
+### node-pty prebuild quirk
+
+`pnpm rebuild node-pty` runs `node scripts/prebuild.js || node-gyp rebuild` from node-pty's postinstall. The prebuild script exits 0 when *any* prebuild exists for the platform, even if the ABI doesn't match the current Node — so the `||` fallback to `node-gyp rebuild` never fires, and `build/Release/pty.node` stays missing. If the app boots with `Failed to load native module: pty.node, checked: build/Release, build/Debug, prebuilds/darwin-arm64`, force a source compile:
+
+```bash
+cd node_modules/.pnpm/node-pty@*/node_modules/node-pty && npx node-gyp rebuild
+```
+
+That drops the binary at the path the loader expects. `better-sqlite3` doesn't have this quirk — plain `pnpm rebuild better-sqlite3` always compiles from source.
+
 Trellis's backend runs as a `tsx` subprocess under system Node — not inside Electron's main process — so native modules must target system Node's ABI, which `pnpm rebuild` does by default. Do NOT use `@electron/rebuild` here; it would target Electron's ABI and break the backend subprocess.
 
 ## Key Patterns

@@ -1678,6 +1678,50 @@ Claude Code implements its own `OAuthClientProvider` that:
 
 </details>
 
+### 52. Collapse long user messages with Show more / Show less
+
+**Why:** Pasting a long file, log, or prompt into chat produces a wall of text that dominates the thread and pushes subsequent turns off-screen. Scrolling past the same pasted block every time you revisit the thread is friction. Cursor / Claude.ai / ChatGPT all cap tall user messages and surface a Show more toggle — feels standard once you notice it's missing.
+
+**Shape:** Cap the visible height of user messages at ~20 lines (roughly 400px at current line-height). If content exceeds the cap, render a soft fade-out gradient over the last ~40px and a `Show more` control below the bubble. Click → expands to full height, control flips to `Show less`. State is per-message, lives in component state (not persisted — re-collapse on thread reopen is acceptable for v1).
+
+Applies to **user** messages only. Assistant messages are streamed markdown and may contain code blocks the user actively needs to read; collapsing them hurts more than it helps. Users can collapse their own prompt ideas; assistant output stays open.
+
+**Frontend:**
+
+- New component `CollapsibleUserText.tsx` in `dashboard/src/components/chat/` — wraps `UserMessageContent`.
+  - Measures content height via a `useLayoutEffect` + `ResizeObserver` on mount and when `text` changes.
+  - If measured height > `MAX_COLLAPSED_PX` (say 400), clamp via `max-height` + `overflow: hidden` and render the fade + toggle.
+  - Fade: a `::after` absolute gradient from transparent to the bubble bg (`var(--bg-message-user)`), 40px tall, pointer-events none.
+  - Toggle: small text button below the bubble in the action row — lives in the same hover-reveal slot as Edit. Always visible (not hover-only) when the message is collapsible, so users see it without exploration.
+- `ChatMessage.tsx` — wrap user content in `CollapsibleUserText`; keep `FileMention` tokenization inside.
+- `ChatMessage.module.css` — collapsed state class with `max-height` + `overflow: hidden` + the fade pseudo-element.
+
+**No backend changes.**
+
+**Files:**
+- New: `dashboard/src/components/chat/CollapsibleUserText.tsx` + `.module.css`
+- Modified: `dashboard/src/components/chat/ChatMessage.tsx` (swap raw `<UserMessageContent />` for the collapsible wrapper)
+- Modified: `dashboard/src/components/chat/ChatMessage.module.css` (fade/overflow rules)
+
+**Acceptance:**
+1. Paste a 50-line block into composer, send. The rendered user bubble is capped at ~20 lines with a fade and `Show more` below it.
+2. Click `Show more` → bubble expands to full content; toggle flips to `Show less`.
+3. Click `Show less` → re-collapses.
+4. Short messages (under the cap) render normally with no toggle and no fade.
+5. Edit a long message → inline textarea opens (Edit flow unchanged); after save, new content measures again and the toggle appears or disappears based on the new length.
+6. Fade matches the user bubble background in both light and dark themes (no hardcoded color).
+7. Toggle is keyboard-accessible (native `<button>`, focusable, Enter activates).
+
+**Out of scope:**
+- Collapsing assistant messages.
+- Remembering expanded state across reloads.
+- Smart cap (e.g. "collapse only if there's later content"). Always-cap is simpler and predictable.
+- Collapsing tool-call blocks — covered separately by item 38.
+
+**Risk callouts:**
+- **Measurement on mount**: content height depends on fonts loading, `@`-mention pill widths, etc. Using `ResizeObserver` after initial paint avoids flashes where a short-looking message briefly shows a toggle.
+- **Edit flow interaction**: when the inline editor is open, bypass the collapse entirely so the user sees the full text while editing. The collapsible wrapper should only apply in the non-edit render path.
+
 ---
 
 ## Known debt (carried from v2)

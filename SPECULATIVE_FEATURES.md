@@ -1,14 +1,14 @@
 # Trellis — Speculative Features
 
-> Ideas that aren't in PLAN-v3 because they're premature, speculative, or solve problems you don't have yet. Promote an item to PLAN-v3 when the underlying need becomes real.
+> Ideas that aren't in PLAN because they're premature, speculative, or solve problems you don't have yet. Promote an item to PLAN when the underlying need becomes real.
 
 ## How this file works
 
-Unlike PLAN-v3, items here are **intentionally shallow**. Don't over-design them until you actually need them — thinking through implementation details now is wasted effort if the feature never ships.
+Unlike PLAN, items here are **intentionally shallow**. Don't over-design them until you actually need them — thinking through implementation details now is wasted effort if the feature never ships.
 
 Each item has:
 - **Idea** — one sentence
-- **Trigger** — what signal would promote this to PLAN-v3
+- **Trigger** — what signal would promote this to PLAN
 - **Sketch** — rough approach, if obvious
 
 ---
@@ -63,7 +63,7 @@ Each item has:
 
 **Sketch:** Store message state immutably. "Rewind to here" rolls the thread back, forking anything after into a sub-thread.
 
-### Commit message generation (demoted from PLAN-v3 item 35, 2026-04-22)
+### Commit message generation (demoted from PLAN item 35, 2026-04-22)
 
 **Idea:** One-click "Generate commit message" button in the review panel that calls the LLM with the staged diff and returns a conventional-commit-style message.
 
@@ -75,7 +75,7 @@ Each item has:
 **Why demoted:** In Trellis's current workflow, the LLM can commit directly via the `bash` tool — "commit this and open a PR" as a prompt does the whole job. A one-click button saves ~30s vs. one prompt saves the same. Not worth the 1-hour budget when items 11 (edit+regenerate) and 3 (workspace context file) get used every session.
 
 <details>
-<summary>Full spec (ready to implement if promoted back to PLAN-v3)</summary>
+<summary>Full spec (ready to implement if promoted back to PLAN)</summary>
 
 #### Shape
 
@@ -356,7 +356,7 @@ Modified:
 
 When an idea here starts hurting (you hit the trigger condition), promote it:
 
-1. Move the item text into PLAN-v3
-2. Flesh it out following the PLAN-v3 item template (Symptom/What, Cause/Why, Implementation, Files, Acceptance, Out of scope)
+1. Move the item text into PLAN
+2. Flesh it out following the PLAN item template (Symptom/What, Cause/Why, Implementation, Files, Acceptance, Out of scope)
 3. Delete from here
-4. Assign it a priority tier in the PLAN-v3 triage section
+4. Assign it a priority tier in the PLAN triage section

@@ -292,31 +292,116 @@ On plan > "The goal is to point Text's variant map..."
 
 ### 34. Image paste / drop in composer
 
-**What:** Paste an image from clipboard or drag-drop from Finder into the composer. Image gets attached to the message and sent to the LLM.
+**What:** Paste an image from clipboard or drag-drop from Finder into the composer. Image attaches to the user message and is sent to the LLM as a vision input. After send, the image renders inline in chat history and survives app restart.
 
-**Why:** Reviewing UI screenshots, design mockups, error dialogs — all faster as images than descriptions. Claude and OpenAI both support image input natively.
+**Why:** Reviewing UI screenshots, design mockups, error dialogs — all faster as images than descriptions. Anthropic and OpenAI both support image input natively; we pay nothing extra at the API layer to enable this. Frequent use case during dogfooding (UI work, "why does this look wrong", layout questions).
 
-**Implementation:**
-1. `ChatComposer`: add `onPaste` and `onDrop` handlers on the textarea / container.
-2. On paste/drop, read blob → convert to base64 → append to message's image array.
-3. Render a thumbnail strip above the textarea showing attached images with X to remove.
-4. On send, backend stores images at `~/.trellis/images/<threadId>/<uuid>.png` and returns paths.
-5. Update LLM adapters to convert image attachments into provider format:
-   - Anthropic: `{ type: "image", source: { type: "base64", media_type, data } }` in message content array
-   - OpenAI: `{ type: "image_url", image_url: { url: "data:image/png;base64,..." } }`
-6. `ChatMessage` renders images inline in user/assistant turns.
+#### Data model
 
-**Files to touch:**
-- `dashboard/src/components/chat/ChatComposer.tsx` — paste/drop handlers, thumbnail strip
-- `dashboard/src/components/chat/ChatMessage.tsx` — render attached images
-- `src/llm/anthropic.ts`, `src/llm/openai.ts` — image message conversion
-- `src/shared/types.ts` — add `images?: string[]` to `LLMMessage`
-- `src/db/store.ts` — store image paths as JSON in a new `images` column on messages
-- `src/api/routes.ts` — image upload handler, static serving from `~/.trellis/images/`
+**On-disk layout:** images live at `~/.trellis/images/<threadId>/<uuid>.<ext>` (the existing `~/.trellis/` data dir from `src/index.ts:14`). The backend Express server serves them as static assets at `/files/images/<threadId>/<uuid>.<ext>`. Images persist for the life of the thread; deleted with the thread via cascade (handled at the FS level — extend `deleteThread` in `store.ts` to `rm -rf` the thread's image dir).
 
-**Acceptance:** Paste a screenshot, send, see Claude describe what's in it. Close the app, reopen — image still renders in history.
+**SQLite:** add an `images` column to `messages` storing JSON `string[]` of paths relative to the trellis dir (e.g. `["images/<threadId>/<uuid>.png"]`). Use the existing idempotent ALTER pattern at `src/db/store.ts:115`:
 
-**Out of scope:** Video, PDF, or non-image attachments.
+```ts
+try {
+  this.db.exec('ALTER TABLE messages ADD COLUMN images TEXT');
+} catch (err) {
+  if (!(err instanceof Error) || !err.message.includes('duplicate column')) throw err;
+}
+```
+
+`Message` type gains `images: string[] | null` (parsed from JSON on read; null when no images).
+
+**LLMMessage type:** extend `src/shared/types.ts:138` with an optional `images?: Array<{ mediaType: string; data: string }>` field (base64 data + media type). Adapters consume this; the DB layer never sees base64 — paths only.
+
+#### Backend flow
+
+1. **Upload endpoint:** `POST /api/threads/:threadId/images` accepts `multipart/form-data` with one or more `image` fields. For each upload:
+   - Validate `Content-Type` matches one of `image/png`, `image/jpeg`, `image/gif`, `image/webp` (the four formats Anthropic + OpenAI both accept). Reject anything else with 415.
+   - Cap individual file size at **5 MB** (Anthropic's per-image limit). 413 if exceeded.
+   - Cap total per-message images at **10**.
+   - Generate `uuid`, infer extension from media type, write to `~/.trellis/images/<threadId>/<uuid>.<ext>`.
+   - Return `{ paths: string[] }` where each path is relative to `~/.trellis/` (same form stored in DB).
+
+   Use `multer` (already a transitive dep via Express ecosystem; add explicitly if not). Configure with `memoryStorage()` so we control the write — don't let multer dump to `/tmp` and then move.
+
+2. **Static serving:** mount `express.static('~/.trellis/images')` at `/files/images` in `src/api/server.ts`. Set `Cache-Control: public, max-age=31536000, immutable` (paths are uuid-stamped).
+
+3. **Send-message API:** `POST /api/threads/:threadId/messages` body extends to `{ content: string; images?: string[] }`. The `images` array contains paths returned from the upload endpoint. Store them as JSON in the new `images` column. Empty/missing → store NULL.
+
+4. **Session runner:** when building the LLM history, for any user `Message` with non-null `images`, read each file from disk → base64 encode → attach as `LLMMessage.images: [{ mediaType, data }]`. Read happens lazily per-run — don't preload at startup. If a file is missing (user deleted manually), log a warning and skip that image; don't crash.
+
+5. **Adapter conversion:**
+   - **Anthropic** (`src/llm/anthropic.ts:133` `convertMessages`): when a user `LLMMessage` has `images`, change the content from a string to an array: `[...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })), { type: 'text', text: msg.content }]`. Image blocks come **before** text — Anthropic's recommendation.
+   - **OpenAI** (`src/llm/openai.ts:127` `convertMessages`): same idea, content becomes `[...images.map(img => ({ type: 'image_url', image_url: { url: \`data:${img.mediaType};base64,${img.data}\` } })), { type: 'text', text: msg.content }]`. Order: images then text.
+   - **Ollama** (`src/llm/ollama.ts`): only specific Ollama models support vision (llava, etc.). Pass `images: string[]` (base64 strings without data URI prefix) on the message — Ollama's API supports this on its `/api/chat` endpoint when the model is multimodal. Non-multimodal models will error from the server side; we surface the error as-is.
+   - **Custom** (`src/llm/custom.ts`): assume OpenAI-compatible — same payload shape as OpenAI.
+
+6. **Thread deletion:** in `store.deleteThread` (or wherever cascade cleanup runs), recursively remove `~/.trellis/images/<threadId>/`. Use `fs.rm(path, { recursive: true, force: true })`.
+
+#### Frontend flow
+
+1. **`ChatComposer.tsx`** (`dashboard/src/components/chat/ChatComposer.tsx`):
+   - Add local state `attachments: Array<{ id: string; file: File; previewUrl: string }>` (`previewUrl` from `URL.createObjectURL` for thumbnail rendering; revoked on remove/send).
+   - `onPaste` handler on the textarea: read `e.clipboardData.items`, filter for `kind === 'file'` with `type.startsWith('image/')`, append as attachments.
+   - `onDrop` handler on the composer container (also handle `onDragOver`/`onDragEnter` to show a drop highlight): read `e.dataTransfer.files`, filter for image MIME types, append.
+   - Reject files >5 MB or unsupported types client-side with an inline error message above the thumbnail strip (auto-clears after 4s).
+   - **Thumbnail strip:** new sub-component `AttachmentStrip` rendered above the textarea inside `inputWrap`. Each thumb is a 64×64 square with the preview, an "X" remove button on hover, and a faint border using existing tokens (`var(--border-subtle)`).
+   - **Send flow:** `handleSubmit` becomes async. If attachments exist:
+     1. POST them via FormData to `/api/threads/:threadId/images`, get back paths.
+     2. Then POST to `/api/threads/:threadId/messages` with `{ content, images: paths }`.
+     3. Revoke object URLs, clear attachments.
+   - If only text (no attachments), keep current behavior (the existing single POST).
+   - Disable Send button while uploads are in flight; show a small spinner inside the stop-button slot.
+   - Drop zone visual: when dragging over composer, render a dashed border + "Drop image to attach" overlay using `var(--accent-subtle)` background.
+
+2. **`ChatMessage.tsx`** (`dashboard/src/components/chat/ChatMessage.tsx`):
+   - When rendering a user message with `message.images`, render an image grid above the text content. Use `<img src="/files/images/..." />` (the static-serving path). Click image → open in new tab/lightbox (v1: just `window.open(src)`).
+   - Grid layout: max 3 per row, max 200px wide each, `object-fit: cover` for thumbnails. Lazy-load (`loading="lazy"`).
+   - Edit flow: editing a message **does not** edit attachments in v1 — the attachment set is frozen at send time. The Edit button still works on text. Document this limitation in a comment near the EditBox.
+
+3. **API client** (`dashboard/src/hooks/useWorkspaces.ts` or wherever the existing send-message mutation lives): extend the mutation input shape and add an `uploadImages(threadId, files): Promise<string[]>` helper.
+
+4. **`Message` type sync:** the `images` field on the shared type flows through; the dashboard reads it via the existing `/api/threads/:id/messages` GET.
+
+#### Files to touch
+
+- `src/shared/types.ts` — add `images: string[] | null` to `Message`; add `images?: Array<{mediaType, data}>` to `LLMMessage`.
+- `src/db/store.ts` — ALTER for `images` column; serialize/deserialize JSON in create/list/get; FS cleanup in `deleteThread`.
+- `src/api/routes.ts` — new `POST /threads/:threadId/images` route; extend send-message route to accept `images: string[]`.
+- `src/api/server.ts` — mount static `/files/images`; ensure dir exists on startup.
+- `src/session/runner.ts` (or wherever LLM history is assembled — confirm exact filename) — read image bytes, base64 encode, populate `LLMMessage.images`.
+- `src/llm/anthropic.ts`, `src/llm/openai.ts`, `src/llm/ollama.ts`, `src/llm/custom.ts` — image content conversion in each adapter.
+- `dashboard/src/components/chat/ChatComposer.tsx` (+ `.module.css`) — paste/drop handlers, attachment state, thumbnail strip, drop overlay, two-step send.
+- `dashboard/src/components/chat/ChatMessage.tsx` (+ `.module.css`) — render image grid above user message text.
+- `dashboard/src/components/chat/AttachmentStrip.tsx` (new, + `.module.css`) — composer thumbnail UI.
+- `dashboard/src/hooks/useWorkspaces.ts` (or current send-message hook) — multipart upload helper, mutation shape change.
+- `package.json` — add `multer` if not present.
+
+#### Acceptance
+
+1. Paste a PNG screenshot from clipboard into the composer → thumbnail appears above the textarea.
+2. Drag a JPEG from Finder onto the composer → drop overlay shows, then thumbnail appears.
+3. Hover thumbnail → X appears → click removes it.
+4. Send a message with one image and the text "what's in this image" using an Anthropic model → assistant response describes the image content correctly.
+5. Same flow with an OpenAI model → also works.
+6. Send a message with 3 images → grid renders correctly in chat history.
+7. Quit the app, reopen, navigate to the thread → images still render (served from static path, file present on disk).
+8. Delete the thread → image directory at `~/.trellis/images/<threadId>/` is removed.
+9. Drop a `.txt` file → rejected with inline error "Only image files are supported".
+10. Drop a 10 MB image → rejected with inline error "Image too large (max 5 MB)".
+11. Edit a sent message that has images → text edits work; image set is unchanged.
+
+#### Out of scope
+
+- Video, PDF, audio, or non-image attachments.
+- Image editing/cropping in the composer.
+- Lightbox modal (v1 = open in new tab on click).
+- Editing attachments after send (only text editable).
+- Image attachments on assistant messages (LLMs return text/tool-use; not attaching images of their own).
+- Per-image alt text or captions.
+- Compression / resizing on upload (let users send full quality; cap is 5 MB).
+- Dragging URLs from a browser tab (only File items from `dataTransfer.files`).
 
 ### 37. Smoke test coverage
 

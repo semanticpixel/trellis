@@ -28,7 +28,7 @@ Done items live in [`PLAN-DONE.md`](./PLAN-DONE.md). When an item ships, mark it
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries — DONE).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP — stdio DONE, HTTP/SSE in item 50, OAuth in item 51), 7 (plan mode), 10 (@-mentions — DONE), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), ~~34 (image paste — DONE)~~, 35 (commit message gen), 50 (HTTP/SSE MCP transport — DONE), 51 (OAuth for HTTP MCP — DONE).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate — DONE), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference — DONE), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard), 53 (centered chat content width — DONE), 54 (full-bleed chat shell + icon actions — DONE), 55 (CSS logical properties + Stylelint).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard), 53 (centered chat content width — DONE), 54 (full-bleed chat shell + icon actions — DONE), 55 (CSS logical properties + Stylelint), 56 (initial GitHub Actions CI).
 
 ### Dependency graph
 
@@ -773,7 +773,84 @@ If during the migration any `stylelint-config-standard` rule turns out to be gen
 - Token-level changes to `tokens.css` (those use CSS custom properties, not physical/logical positioning).
 - Auto-fixing `text-align: left/right` to `start/end` — handle by hand because some places (e.g. timestamps that should always be right-aligned visually regardless of writing direction) genuinely want physical alignment.
 
-**Owner:** Codex agent run. Suggested commit split: (1) config + scripts + deps, (2) autofixed CSS changes, (3) manual `text-align` sweep + CLAUDE.md update. PR title: `chore(css): adopt logical properties + Stylelint`.
+**Owner:** Codex agent run. Suggested commit split: (1) config + scripts + deps, (2) autofixed CSS changes, (3) manual `text-align` sweep + CLAUDE.md update + add `pnpm run lint:css` to the workflow created by item 56. PR title: `chore(css): adopt logical properties + Stylelint`.
+
+**Depends on:** Item 56 (initial CI). Land 56 first so Stylelint plugs into an existing workflow rather than fabricating one.
+
+### 56. Set up GitHub Actions CI
+
+**What:** Add the repo's first CI workflow. Run `pnpm typecheck` + `pnpm test` on every push and on PRs targeting `main`. Block merges on failure.
+
+**Why:** No CI today means typecheck or test regressions only surface when a human runs them locally — easy to slip past review. With items 55 (Stylelint), 37 (smoke tests), and 39 (packaged distribution) all queued, having a workflow file in place now means each of those just adds a step instead of bootstrapping CI alongside the feature.
+
+**Implementation:**
+
+1. Create `.github/workflows/ci.yml`:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        # Reads packageManager from package.json — no version arg needed
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+```
+
+2. Verify the workflow runs by opening the CI PR. Native modules (`better-sqlite3`, `node-pty`) compile from source on `ubuntu-latest` — the runner has python + build-essential preinstalled, so `pnpm install` should succeed without extra setup. If it fails, add `apt-get install -y python3 make g++` as a step before install (don't add preemptively).
+
+3. Add a status badge to the top of `README.md`:
+   ```md
+   [![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+   ```
+   Look up the actual `<owner>/<repo>` from the existing git remote — don't guess.
+
+4. **Branch protection:** after the workflow lands and is green at least once, ask the user to enable required status checks on `main` in GitHub Settings → Branches. Don't try to do this via gh API in the migration — repo settings are the user's call.
+
+**Files to touch:**
+- `.github/workflows/ci.yml` (new)
+- `README.md` — CI status badge at the top
+
+**Acceptance:**
+1. Push the branch — `Actions` tab shows the workflow running and passing.
+2. Open the PR — CI runs again and reports green on the PR.
+3. Introduce a deliberate `pnpm typecheck` failure on a throwaway commit (e.g. `const x: string = 42;` in a temp file) — CI fails. Revert before merging.
+4. README badge renders the green/passing state on `main`.
+
+**Out of scope:**
+- Caching beyond `actions/setup-node`'s built-in pnpm cache.
+- Build matrix (multiple Node versions, multiple OSes).
+- Release / packaging workflow (item 39 covers that separately).
+- Branch protection enforcement via API — manual user step.
+- Linting (item 55 adds `pnpm run lint:css` to this workflow once Stylelint lands).
+- Smoke tests (item 37 will add `pnpm test`-coverage-relevant steps when the test suite grows).
+
+**Owner:** Codex agent run. Single PR, single commit. PR title: `chore(ci): add GitHub Actions workflow for typecheck + test`.
 
 ---
 

@@ -1,3 +1,5 @@
+[![CI](https://github.com/semanticpixel/trellis/actions/workflows/ci.yml/badge.svg)](https://github.com/semanticpixel/trellis/actions/workflows/ci.yml)
+
 # Trellis
 
 Multi-workspace LLM development environment. Run multiple AI coding sessions across workspaces simultaneously, review diffs and plans inline, and manage git branches — all from one app.

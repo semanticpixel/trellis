@@ -1,7 +1,7 @@
 /* ── Diff File List ─────────────────────────────────────────── */
 
 .list {
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .row {

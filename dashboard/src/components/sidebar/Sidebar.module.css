@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border-primary);
+  border-inline-end: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
@@ -13,8 +13,8 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
-  padding-top: 38px; /* macOS traffic lights */
+  border-block-end: 1px solid var(--border-primary);
+  padding-block-start: 38px; /* macOS traffic lights */
   -webkit-app-region: drag;
 }
 
@@ -60,7 +60,7 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .searchIcon {
@@ -100,7 +100,7 @@
   display: flex;
   gap: var(--space-xs);
   padding: var(--space-sm);
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
 }
 
 .addButton {

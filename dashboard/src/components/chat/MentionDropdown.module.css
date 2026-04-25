@@ -1,7 +1,7 @@
 .dropdown {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
+  inset-block-end: calc(100% + 6px);
+  inset-inline-start: 0;
   width: 100%;
   max-width: 480px;
   background: var(--bg-input);

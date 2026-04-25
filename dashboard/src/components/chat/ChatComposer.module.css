@@ -2,7 +2,7 @@
  * The actual input is centered and capped at `--content-width` via
  * `.inner`. */
 .composer {
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
   position: relative;
 }
 
@@ -14,7 +14,7 @@
 }
 
 .attachError {
-  margin-bottom: var(--space-xs);
+  margin-block-end: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
   background: var(--error-subtle);
   color: var(--error);
@@ -40,12 +40,12 @@
 
 .spinner {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  inset-inline-end: 8px;
+  inset-block-end: 8px;
   width: 18px;
   height: 18px;
   border: 2px solid var(--border-primary);
-  border-top-color: var(--accent);
+  border-block-start-color: var(--accent);
   border-radius: 50%;
   animation: composerSpin 700ms linear infinite;
 }
@@ -85,8 +85,8 @@
 
 .stopButton {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  inset-inline-end: 8px;
+  inset-block-end: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

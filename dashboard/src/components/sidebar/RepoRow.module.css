@@ -1,5 +1,5 @@
 .repo {
-  margin-bottom: 1px;
+  margin-block-end: 1px;
 }
 
 .row {
@@ -73,7 +73,7 @@
 }
 
 .threads {
-  padding-left: var(--space-lg);
+  padding-inline-start: var(--space-lg);
 }
 
 .empty {

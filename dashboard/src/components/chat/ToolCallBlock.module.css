@@ -58,7 +58,7 @@
   line-height: 1.5;
   color: var(--text-primary);
   overflow-x: auto;
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
   max-height: 300px;
   overflow-y: auto;
   white-space: pre-wrap;

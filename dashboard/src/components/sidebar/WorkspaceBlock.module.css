@@ -1,5 +1,5 @@
 .block {
-  margin-bottom: 2px;
+  margin-block-end: 2px;
 }
 
 .header {
@@ -74,7 +74,7 @@
 }
 
 .body {
-  padding-left: 10px;
+  padding-inline-start: 10px;
 }
 
 .separator {

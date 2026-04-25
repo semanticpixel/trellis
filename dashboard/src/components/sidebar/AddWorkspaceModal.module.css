@@ -22,7 +22,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .title {
@@ -113,7 +113,7 @@
   display: flex;
   gap: var(--space-sm);
   justify-content: flex-end;
-  margin-top: var(--space-sm);
+  margin-block-start: var(--space-sm);
 }
 
 .cancelBtn {

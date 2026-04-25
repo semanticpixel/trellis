@@ -27,9 +27,9 @@
 
 .dropdown {
   position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: var(--space-xs);
+  inset-block-start: 100%;
+  inset-inline-end: 0;
+  margin-block-start: var(--space-xs);
   min-width: 180px;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
@@ -46,7 +46,7 @@
 }
 
 .group + .group {
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
 }
 
 .groupLabel {

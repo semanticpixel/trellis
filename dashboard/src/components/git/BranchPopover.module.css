@@ -20,7 +20,7 @@
 
 .searchWrapper {
   padding: var(--space-sm);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .searchInput {
@@ -103,7 +103,7 @@
 
 .footer {
   padding: var(--space-sm);
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
 }
 
 .createRow {

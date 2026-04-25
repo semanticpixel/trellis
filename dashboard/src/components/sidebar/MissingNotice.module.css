@@ -1,5 +1,5 @@
 .notice {
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
   padding: var(--space-sm);
 }
 

@@ -1,5 +1,5 @@
 .container {
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   background: var(--bg-code);
@@ -11,7 +11,7 @@
   justify-content: space-between;
   padding: 4px var(--space-md);
   background: var(--bg-sidebar);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
   cursor: pointer;
   user-select: none;
 }

@@ -28,7 +28,7 @@ Done items live in [`PLAN-DONE.md`](./PLAN-DONE.md). When an item ships, mark it
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries — DONE).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP — stdio DONE, HTTP/SSE in item 50, OAuth in item 51), 7 (plan mode), 10 (@-mentions — DONE), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), ~~34 (image paste — DONE)~~, 35 (commit message gen), 50 (HTTP/SSE MCP transport — DONE), 51 (OAuth for HTTP MCP — DONE).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate — DONE), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference — DONE), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard), 53 (centered chat content width — DONE), 54 (full-bleed chat shell + icon actions — DONE).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard), 53 (centered chat content width — DONE), 54 (full-bleed chat shell + icon actions — DONE), 55 (CSS logical properties + Stylelint).
 
 ### Dependency graph
 
@@ -85,25 +85,161 @@ Every thread starts fresh with the same default system prompt. Add a per-workspa
 
 ### 7. Plan mode (priority)
 
-Mirror Claude Code's plan mode. Forces the LLM into "propose before executing" — useful for non-trivial changes where you want to review before any files get written.
+**What:** Mirror Claude Code's plan mode. A per-thread toggle that forces the LLM into "propose before executing." When on, the model can read but cannot write — its final response is saved as the thread's plan, surfaced in the existing Plan tab for annotation, and only executes after explicit user approval.
 
-**How it works:**
-- Toggle on the composer: `Plan mode` button next to Send (or keyboard shortcut like `Shift+Tab` to match Claude Code)
-- When active, the system prompt instructs the LLM to only use read-only tools (`read_file`, `list_files`) and produce a plan, never modifying files
-- LLM's response renders as a plan in the review panel's Plan tab (reusing existing plan annotation UI)
-- User reviews, annotates, and either approves (plan mode exits, LLM executes) or denies with feedback (plan mode stays on, LLM revises)
+**Why:** For non-trivial changes the cost of letting the LLM run wild is wasted token spend, broken trees, and rework. A "plan first, then act" mode lets the user catch a wrong direction before any file is touched. It also reuses the Plan tab + annotation system already built — turning that surface from a static `.trellis-plan.md` viewer into the live review surface for in-progress work.
 
-**Implementation:**
-- Add `plan_mode: boolean` column to `threads` table (per-thread state)
-- SessionRunner checks this flag; if true, filters tools to read-only subset and injects plan-mode system prompt
-- When LLM produces its final response in plan mode, save it to `.trellis-plan.md` so the existing Plan tab renders it
-- Approval button in the Plan tab header: "Approve & execute" → sets `plan_mode = false`, triggers a new session that follows the plan
-- Works with existing annotation system — user annotations feed back into plan revisions via the existing "Send feedback" flow
+#### How it works (user-facing)
 
-**UI cues:**
-- Visible badge in the chat header when plan mode is active (e.g. "Plan mode" pill in workspace color)
-- Review panel auto-opens to Plan tab when LLM is thinking
-- Composer placeholder changes to "Describe what you want to build (plan mode)"
+- Composer has a **Plan mode** toggle button next to Send. Keyboard shortcut **`Shift+Tab`** mirrors Claude Code.
+- When active:
+  - Composer placeholder changes to *"Describe what you want to build (plan mode)"*
+  - A small **Plan mode** pill appears in the chat header (workspace-color background, neutral text) so it's obvious you're in this mode
+  - On send, the LLM streams normally into chat, but the runner constrains its tool set and system prompt
+  - When the assistant emits a final text turn (no more tool calls), the runner writes that text to `.trellis-plan.md` in the repo root and broadcasts a refresh
+  - Review panel auto-switches to the **Plan** tab so the proposal is visible immediately
+- User reviews + annotates the plan in the Plan tab (existing flow). Two new affordances appear in the Plan tab header **only while the thread is in plan mode**:
+  - **Approve & execute** — exits plan mode, starts a new run with the full tool set + the approved plan injected as a system note
+  - **Revise** — sends accumulated annotations as feedback, runner stays in plan mode, new revision streams in
+- Approve & execute is disabled while a run is in flight or while there are unresolved annotations.
+
+#### Schema
+
+Add to the `threads` table via the same idempotent ALTER pattern at `src/db/store.ts:115`:
+
+```ts
+try {
+  this.db.exec("ALTER TABLE threads ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0");
+} catch (err) {
+  if (!(err instanceof Error) || !err.message.includes('duplicate column')) throw err;
+}
+```
+
+Update `Thread` interface in `src/shared/types.ts:26` with `plan_mode: number` (0 or 1; we keep numeric to match existing SQLite booleans like `Annotation.resolved`). Add `setThreadPlanMode(threadId, planMode: 0 | 1)` to the store.
+
+#### Backend — runner changes
+
+In `src/session/runner.ts`:
+
+1. **Tool gate.** After `const toolDefs = [...getToolDefinitions(), ...mcpTools];` (line 67), if `thread.plan_mode === 1`, filter to a read-only allowlist:
+   ```ts
+   const READ_ONLY_TOOL_ALLOWLIST = new Set(['read_file', 'list_files', 'search_files']);
+   const filteredToolDefs = thread.plan_mode
+     ? toolDefs.filter(t => READ_ONLY_TOOL_ALLOWLIST.has(t.name))
+     : toolDefs;
+   ```
+   MCP tools are filtered OUT in plan mode (we can't audit their side-effect surface). Document this in the spec; if a user has a strictly-read-only MCP tool they want exposed in plan mode, that's a follow-up item.
+
+2. **System prompt.** Extend `buildDefaultSystemPrompt` to take `planMode: boolean` and append a plan-mode addendum when true:
+   ```
+   You are currently in PLAN MODE.
+   - DO NOT modify any files. You only have read tools available.
+   - Your job is to investigate the codebase and propose a concrete plan.
+   - End your response with the proposed plan as the final assistant message.
+   - The plan will be saved to .trellis-plan.md and reviewed by the user before any execution.
+   - Structure the plan as numbered steps so the user can comment on each step.
+   ```
+   When the user has set a custom `thread.system_prompt`, **still append the plan-mode addendum** if `plan_mode = 1`. The two layer.
+
+3. **Capture final assistant text → write `.trellis-plan.md`.** When the runner exits the tool loop in plan mode and the last assistant message is a text turn, write its content to `<repoPath>/.trellis-plan.md`. Use `writeFile` from `fs/promises`. Broadcast a new WS event `plan_updated` (add to `WSEventType`) with `{ repoId }` so the dashboard can re-fetch via the existing `usePlan(repoId)` hook. Workspace-only threads (no `repo_id`) — write to `<workspacePath>/.trellis-plan.md` instead.
+
+4. **Skip if no text turn.** If the assistant only emitted tool calls and no final text (shouldn't happen, but defend), don't write the plan file — just leave the thread as-is.
+
+#### Backend — API changes
+
+In `src/api/routes.ts`:
+
+1. **PATCH thread plan_mode** — extend the existing `PATCH /threads/:id` route to accept `plan_mode: 0 | 1`. Reject the toggle if the thread is currently `running`; user must wait for the in-flight session to settle first.
+
+2. **POST /threads/:threadId/approve-plan** — new route:
+   ```ts
+   router.post('/threads/:threadId/approve-plan', async (req, res) => {
+     // 1. Verify thread exists, is in plan_mode, status !== running
+     // 2. Read the current .trellis-plan.md
+     // 3. Set plan_mode = 0
+     // 4. Append a system-style user message: "Plan approved. Execute the plan above."
+     //    plus the plan content (this is what the runner sees on the next loop)
+     // 5. Trigger a new session via sessionManager.startSession(threadId)
+     // 6. Mark all plan_step annotations on this thread resolved (the plan is now committed)
+     // 7. Return 202
+   });
+   ```
+
+3. **Reuse existing `/send-feedback`** for the Revise action. The PlanTab already creates `plan_step` annotations; sending them back to the LLM with `plan_mode = 1` keeps the runner constrained to read tools, and the model produces a revised plan. No new endpoint needed for revise.
+
+#### Frontend — composer
+
+In `dashboard/src/components/chat/ChatComposer.tsx`:
+
+1. Add `planMode: boolean` and `onTogglePlanMode: () => void` to `ChatComposerProps`. The owner (`ChatPanel`) passes the thread's current `plan_mode` and a mutation that PATCHes the thread.
+2. Render a **Plan mode** toggle button to the left of (or replacing the position of) the existing send affordances. Use the `Compass` icon from `lucide-react` (already a dep) when off, filled accent state when on. Tooltip: *"Plan mode (Shift+Tab)"*.
+3. Bind `Shift+Tab` in the textarea's `onKeyDown` (already exists, just add a branch). PreventDefault so it doesn't move focus.
+4. When `planMode` is true, swap the textarea placeholder to *"Describe what you want to build (plan mode)"*.
+
+#### Frontend — chat header
+
+In `dashboard/src/components/chat/ChatPanel.tsx` (header area):
+
+- When `thread.plan_mode === 1`, render a small `<span class={styles.planPill}>Plan mode</span>` next to the title. Background `var(--color-accent-subtle)` (or workspace color if available), text `var(--text-primary)`, no hardcoded colors. Tokens only.
+
+#### Frontend — Plan tab
+
+In `dashboard/src/components/review/PlanTab.tsx`:
+
+1. Accept `planMode: boolean` from props (plumb through `ReviewPanel`).
+2. When `planMode === true`, render a sticky header bar at the top of the tab with two buttons:
+   - **Approve & execute** (primary) — calls `POST /api/threads/:id/approve-plan`. Disabled when:
+     - `thread.status === 'running'`
+     - There are unresolved `plan_step` annotations on this thread (you have to either resolve them via Revise, or delete them, before approving)
+   - **Revise** (secondary) — calls the existing `POST /api/threads/:id/send-feedback` with selected annotations. After a successful revise, the runner emits a new plan and the `plan_updated` WS event re-fetches.
+3. When `planMode === false`, the tab renders exactly as today (no header bar) — backwards compatible.
+4. Add a hook `useApprovePlan(threadId)` next to existing `useCreateAnnotation` etc. in `dashboard/src/hooks/useReview.ts`.
+
+#### Frontend — auto-open Plan tab
+
+In `dashboard/src/components/review/ReviewPanel.tsx`:
+
+- When the active thread has `plan_mode === 1` and `status === 'running'`, auto-switch to the Plan tab on mount and on every `thread_status` transition into `running`. Honor the existing manual-tab-selection pattern: if the user explicitly clicked a different tab during this run, don't override.
+
+#### WebSocket
+
+Add `'plan_updated'` to `WSEventType` in `src/shared/types.ts`. Payload: `{ repoId: string | null; workspaceId: string }`. The dashboard listens (in the existing WS hook) and invalidates the React Query cache for `usePlan(repoId)`.
+
+#### Files to touch
+
+- `src/shared/types.ts` — `Thread.plan_mode`, `WSEventType +'plan_updated'`
+- `src/db/store.ts` — ALTER threads + `setThreadPlanMode`
+- `src/session/runner.ts` — tool filter, system prompt addendum, write `.trellis-plan.md` on plan-mode completion, broadcast `plan_updated`
+- `src/api/routes.ts` — PATCH thread accepts `plan_mode`; new `POST /threads/:id/approve-plan`
+- `src/git/operations.ts` — utility to write `.trellis-plan.md` (mirrors existing `readPlanFile`)
+- `dashboard/src/components/chat/ChatComposer.tsx` (+ `.module.css`) — toggle button, Shift+Tab binding, placeholder swap
+- `dashboard/src/components/chat/ChatPanel.tsx` (+ `.module.css`) — plan-mode pill in header; pass `planMode` to children
+- `dashboard/src/components/review/PlanTab.tsx` (+ `.module.css`) — Approve & execute / Revise header bar
+- `dashboard/src/components/review/ReviewPanel.tsx` — auto-switch to Plan tab when plan-mode run starts
+- `dashboard/src/hooks/useReview.ts` — `useApprovePlan`, `useTogglePlanMode`
+- `dashboard/src/hooks/useChatStream.ts` (or wherever WS events are routed) — handle `plan_updated`
+
+#### Acceptance
+
+1. New thread, click Plan mode toggle (or press Shift+Tab) — pill appears in header, placeholder changes, button shows active state.
+2. Send "refactor the auth module to drop sessions in favor of JWTs" — LLM streams response in chat without writing files. Tools used should only be `read_file` / `list_files` / `search_files`.
+3. After streaming completes, `.trellis-plan.md` exists in the repo root with the LLM's plan content. Plan tab refreshes automatically and shows the plan.
+4. Annotate step 2 with a comment ("don't deprecate the legacy refresh token endpoint"). Click **Revise**. New run starts (still in plan mode), new plan supersedes the old, comment is consumed.
+5. Click **Approve & execute** with no outstanding annotations. Plan-mode pill disappears, a new session starts with the full tool set, and the LLM begins editing files following the plan.
+6. Toggle Plan mode off mid-thread (via toggle button) while idle — pill disappears, next message uses full tools.
+7. Try to toggle Plan mode while a run is in flight → button is disabled (or PATCH returns 409).
+8. Workspace-only thread (no repo) — `.trellis-plan.md` is written to the workspace path; Plan tab still renders.
+9. MCP tools that are normally available are NOT visible in tool defs while plan_mode is on (verify via runner log or by stubbing one MCP tool).
+10. App restart mid-plan-mode session: thread still shows plan-mode pill (state persisted in DB).
+
+#### Out of scope
+
+- Per-MCP-tool read-only allowlisting in plan mode (right now: all MCP tools off in plan mode).
+- Approving only specific steps of the plan (all-or-nothing v1).
+- Plan-mode for workspace-write threads with custom path scoping (separate; ties into item 8).
+- Editing the plan markdown directly in the Plan tab (still read-only there; user edits via annotations or by switching to a file editor).
+- A "preview" run that pretends to execute but only logs intended actions — separate item if requested.
+- Multi-thread plan composition (combining plans from sibling threads).
 
 ## Claude-style permissions system
 
@@ -565,6 +701,79 @@ Applies to **user** messages only. Assistant messages are streamed markdown and 
 **Risk callouts:**
 - **Measurement on mount**: content height depends on fonts loading, `@`-mention pill widths, etc. Using `ResizeObserver` after initial paint avoids flashes where a short-looking message briefly shows a toggle.
 - **Edit flow interaction**: when the inline editor is open, bypass the collapse entirely so the user sees the full text while editing. The collapsible wrapper should only apply in the non-edit render path.
+
+### 55. Adopt CSS logical properties + add Stylelint
+
+**What:** Migrate every CSS Module in the dashboard from physical properties (`margin-left`, `padding-right`, `top`, `border-bottom`, etc.) to logical properties (`margin-inline-start`, `padding-inline-end`, `inset-block-start`, `border-block-end`). Add Stylelint with the `stylelint-use-logical` plugin so future drift is caught automatically.
+
+**Why:**
+- **RTL readiness.** Physical properties hardcode left/right; logical properties flow with the writing direction. Even if Trellis is LTR-only today, mirroring is one CSS variable away when we want it.
+- **Consistency catch-net.** No lint today means physical/logical can be mixed file-to-file. One unified vocabulary across the codebase reads better and reviews faster.
+- **Free wins from Stylelint.** Beyond `use-logical`, `stylelint-config-standard` catches duplicate selectors, invalid color values, and other real defects we currently rely on review to spot.
+- **Codex will execute this.** The migration is mechanical (`stylelint --fix` + `csstools/use-logical` autofix handles ~95%), and the residual hand-edits are localized. Good fit for an isolated agent run.
+
+**Config:** Trimmed to only what Trellis needs. The only override is for camelCase class names — we use them in CSS Modules (`.attachError`, `.dropOverlay`), and `stylelint-config-standard` defaults to kebab-case which would flag every class.
+
+```js
+// stylelint.config.cjs (repo root)
+module.exports = {
+  extends: ['stylelint-config-standard'],
+  plugins: ['stylelint-use-logical'],
+  rules: {
+    'csstools/use-logical': ['always', {
+      // Width/height stay physical — they don't have a writing-mode counterpart
+      // worth the indirection, and `block-size`/`inline-size` would obscure intent.
+      except: ['width', 'height', 'min-width', 'min-height', 'max-width', 'max-height'],
+    }],
+    'selector-class-pattern': null, // CSS Modules use camelCase classes
+  },
+  ignoreFiles: ['dashboard/dist/**/*', 'dist/**/*', 'node_modules/**/*'],
+};
+```
+
+If during the migration any `stylelint-config-standard` rule turns out to be genuinely noisy (e.g. `no-descending-specificity` flags too many legitimate hover-before-base patterns), disable that specific rule **with a one-line comment explaining why**. Don't preemptively disable rules.
+
+**Implementation:**
+1. **Add deps:** `pnpm add -D -w stylelint stylelint-config-standard stylelint-use-logical`.
+2. **Create `stylelint.config.cjs`** at the repo root with the config above.
+3. **Add scripts to root `package.json`:**
+   ```json
+   {
+     "scripts": {
+       "lint:css": "stylelint 'dashboard/src/**/*.css'",
+       "lint:css:fix": "stylelint 'dashboard/src/**/*.css' --fix"
+     }
+   }
+   ```
+4. **Run the autofix in two passes:**
+   - First pass: `pnpm run lint:css:fix` — handles the bulk of physical→logical conversions (`margin-left → margin-inline-start`, etc.) automatically via the `csstools/use-logical` plugin.
+   - Second pass: review the remaining warnings/errors. The plugin can't always pick the right side for shorthand `margin: 4px 8px` (that's already block + inline — fine) or for cases where intent matters (e.g. `text-align: left` should usually become `text-align: start`). Sweep these by hand.
+5. **Run `pnpm typecheck && pnpm test`** + smoke-test the dashboard visually. Logical properties resolve to the same physical values in LTR, so there should be **zero visual regressions**. If anything moves, that's a bug — investigate.
+6. **Add to CI:** wire `pnpm run lint:css` into the existing CI pipeline (or pre-commit hook if one exists). Fast (<2s).
+7. **Update `CLAUDE.md`** under the CSS section with one new bullet: *"Use CSS logical properties (`margin-inline-start`, `padding-block-end`, `inset-block-start`) — never physical equivalents. Stylelint enforces this; run `pnpm run lint:css` before commit."*
+
+**Files to touch:**
+- `stylelint.config.cjs` (new)
+- `package.json` — add deps + lint scripts
+- All CSS Module files in `dashboard/src/**/*.module.css` — autofixed, with manual review for `text-align`, hardcoded `left:`/`right:` positioning, etc.
+- `CLAUDE.md` — one-line CSS rule update
+- CI config (whichever file currently runs `pnpm typecheck` / `pnpm test`)
+
+**Acceptance:**
+1. `pnpm run lint:css` passes with zero errors after the migration.
+2. Diff against `main` shows only physical→logical property renames in CSS files; no rule changes, no value changes (other than `text-align` corrections).
+3. Visual smoke: open the dashboard, click through chat / sidebar / review panel / settings — pixel-identical to pre-migration.
+4. Adding a new physical property (`margin-left: 8px`) to any CSS file fails `pnpm run lint:css`.
+5. Stylelint runs in CI and blocks merge on violations.
+
+**Out of scope:**
+- Adopting SCSS or any preprocessor.
+- RTL-specific styling work (just the property migration; no `dir="rtl"` testing yet).
+- Migrating inline `style={{}}` props (there should be none — CLAUDE.md already forbids them; if you find any, log a separate item).
+- Token-level changes to `tokens.css` (those use CSS custom properties, not physical/logical positioning).
+- Auto-fixing `text-align: left/right` to `start/end` — handle by hand because some places (e.g. timestamps that should always be right-aligned visually regardless of writing direction) genuinely want physical alignment.
+
+**Owner:** Codex agent run. Suggested commit split: (1) config + scripts + deps, (2) autofixed CSS changes, (3) manual `text-align` sweep + CLAUDE.md update. PR title: `chore(css): adopt logical properties + Stylelint`.
 
 ---
 

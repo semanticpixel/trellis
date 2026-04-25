@@ -2,7 +2,6 @@
   margin-block-end: 1px;
 }
 
-/* stylelint-disable no-descending-specificity -- Row hover reveals the add button before the button's own hover styling. */
 .row {
   display: flex;
   align-items: center;

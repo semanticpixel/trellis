@@ -1,5 +1,3 @@
-/* stylelint-disable no-descending-specificity -- Diff row variants intentionally share selectors with base row cells. */
-
 /* ── Diff Tab ───────────────────────────────────────────────── */
 
 .container {

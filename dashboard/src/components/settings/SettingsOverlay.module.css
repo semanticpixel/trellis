@@ -1,4 +1,3 @@
-/* stylelint-disable property-no-unknown, value-keyword-case -- CSS Modules composes uses local camelCase class names. */
 .overlay {
   position: fixed;
   inset: 0;

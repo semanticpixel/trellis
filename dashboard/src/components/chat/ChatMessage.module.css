@@ -1,5 +1,3 @@
-/* stylelint-disable no-descending-specificity -- Message action button states stay grouped by control for readability. */
-
 /* Wrapper that stacks the message bubble with its action row below. */
 .row {
   display: flex;

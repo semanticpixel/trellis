@@ -1,12 +1,11 @@
-/* stylelint-disable no-duplicate-selectors -- Token groups intentionally repeat :root for base and theme override sections. */
-
 /* ── Design Tokens ──────────────────────────────────────────── */
 
 /* All colors in components MUST reference these variables.      */
 
 /* No hardcoded hex values in component CSS.                     */
 
-:root {
+:root,
+:root[data-theme="light"] {
   /* Typography */
   --font-sans: -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
   --font-mono: 'SF Mono', sfmono-regular, 'Cascadia Code', menlo, monospace;
@@ -173,47 +172,6 @@
   --shadow-popover: 0 8px 24px rgb(0 0 0 / 35%);
   --shadow-modal: 0 8px 32px rgb(0 0 0 / 45%);
   --bg-overlay: rgb(0 0 0 / 60%);
-}
-
-/* data-theme="light" forces light regardless of OS preference */
-:root[data-theme="light"] {
-  --bg-primary: #fff;
-  --bg-sidebar: #f8f8f8;
-  --bg-hover: #f0f0f0;
-  --bg-active: #e8e8e8;
-  --bg-input: #fff;
-  --bg-code: #f5f5f5;
-  --bg-message-user: #f0f4ff;
-  --bg-message-assistant: #fff;
-  --bg-tool: #f8faf8;
-  --text-primary: #1a1a1a;
-  --text-secondary: #666;
-  --text-tertiary: #999;
-  --text-inverse: #fff;
-  --border-primary: #e5e5e5;
-  --border-secondary: #d0d0d0;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-subtle: #eff6ff;
-  --success: #16a34a;
-  --success-subtle: #f0fdf4;
-  --error: #dc2626;
-  --error-subtle: #fef2f2;
-  --warning: #ca8a04;
-  --warning-subtle: #fefce8;
-  --status-running: #2563eb;
-  --status-approval: #16a34a;
-  --status-done: #999;
-  --status-error: #dc2626;
-  --diff-add-bg: rgb(46 160 67 / 10%);
-  --diff-add-fg: #16a34a;
-  --diff-del-bg: rgb(248 81 73 / 10%);
-  --diff-del-fg: #dc2626;
-  --shadow-subtle: 0 1px 2px rgb(0 0 0 / 5%);
-  --shadow-overlay: 0 0 0 9999px rgb(0 0 0 / 40%);
-  --shadow-popover: 0 8px 24px rgb(0 0 0 / 15%);
-  --shadow-modal: 0 8px 32px rgb(0 0 0 / 20%);
-  --bg-overlay: rgb(0 0 0 / 40%);
 }
 
 /* ── Global Reset ───────────────────────────────────────────── */

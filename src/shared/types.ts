@@ -47,6 +47,9 @@ export interface Message {
   tool_name: string | null;
   tool_use_id: string | null;
   token_count: number | null;
+  // Paths are relative to the trellis data dir (e.g.
+  // "images/<threadId>/<uuid>.png"); served at /files/<path>.
+  images: string[] | null;
   created_at: string;
 }
 
@@ -140,6 +143,10 @@ export interface LLMMessage {
   content: string;
   toolName?: string;
   toolUseId?: string;
+  // Base64-encoded image attachments. Adapters convert these into the
+  // provider's vision content-block shape (Anthropic image, OpenAI image_url,
+  // Ollama image string). The DB layer never sees base64 — only paths.
+  images?: Array<{ mediaType: string; data: string }>;
 }
 
 export interface ToolDefinition {
@@ -205,6 +212,7 @@ export interface CreateThreadRequest {
 
 export interface SendMessageRequest {
   content: string;
+  images?: string[];
 }
 
 export interface CreateAnnotationRequest {

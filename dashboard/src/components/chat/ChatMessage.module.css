@@ -198,3 +198,32 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 200px));
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.imageCell {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.imageCell:hover {
+  border-color: var(--accent);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  max-height: 200px;
+  object-fit: cover;
+}

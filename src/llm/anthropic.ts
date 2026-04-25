@@ -159,6 +159,19 @@ function convertMessages(messages: StreamRequest['messages']): Anthropic.Message
           },
         ],
       });
+    } else if (msg.role === 'user' && msg.images && msg.images.length > 0) {
+      // Image blocks before text — Anthropic recommends this ordering for
+      // best vision performance.
+      const blocks: Anthropic.ContentBlockParam[] = msg.images.map((img) => ({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: img.mediaType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+          data: img.data,
+        },
+      }));
+      blocks.push({ type: 'text', text: msg.content });
+      result.push({ role: 'user', content: blocks });
     } else {
       result.push({
         role: msg.role as 'user' | 'assistant',

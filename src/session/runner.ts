@@ -7,6 +7,38 @@ import { compactMessages, estimateTokens } from './history.js';
 import { generateTitleForThread } from './titler.js';
 import { isMcpToolName, mcpManager } from '../mcp/manager.js';
 import { buildExpandedMessage, expandMentionedFiles, type MentionFileCache } from './file-mentions.js';
+import { readFile } from 'fs/promises';
+import { extname, join } from 'path';
+import { homedir } from 'os';
+
+const IMAGE_EXT_TO_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
+
+async function loadImageAttachments(
+  paths: string[],
+): Promise<Array<{ mediaType: string; data: string }>> {
+  const dataDir = join(homedir(), '.trellis');
+  const result: Array<{ mediaType: string; data: string }> = [];
+  for (const rel of paths) {
+    const mediaType = IMAGE_EXT_TO_MIME[extname(rel).toLowerCase()];
+    if (!mediaType) {
+      console.warn(`[trellis] Skipping image with unknown extension: ${rel}`);
+      continue;
+    }
+    try {
+      const bytes = await readFile(join(dataDir, rel));
+      result.push({ mediaType, data: bytes.toString('base64') });
+    } catch (err) {
+      console.warn(`[trellis] Skipping missing image ${rel}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  return result;
+}
 
 export interface RunnerContext {
   store: Store;
@@ -60,12 +92,21 @@ export async function runThread(
 
       // Load messages from DB
       const dbMessages = store.listMessages(threadId);
-      const allMessages: LLMMessage[] = dbMessages.map((m) => ({
-        role: m.role as LLMMessage['role'],
-        content: m.content,
-        toolName: m.tool_name ?? undefined,
-        toolUseId: m.tool_use_id ?? undefined,
-      }));
+      const allMessages: LLMMessage[] = await Promise.all(
+        dbMessages.map(async (m) => {
+          const llmMsg: LLMMessage = {
+            role: m.role as LLMMessage['role'],
+            content: m.content,
+            toolName: m.tool_name ?? undefined,
+            toolUseId: m.tool_use_id ?? undefined,
+          };
+          if (m.role === 'user' && m.images && m.images.length > 0) {
+            const loaded = await loadImageAttachments(m.images);
+            if (loaded.length > 0) llmMsg.images = loaded;
+          }
+          return llmMsg;
+        }),
+      );
 
       // Expand @path tokens in user messages. The DB record stays unchanged —
       // expansion is ephemeral, applied only to the message stream sent to the

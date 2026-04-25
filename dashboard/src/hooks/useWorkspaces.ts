@@ -100,11 +100,11 @@ export function useMessages(threadId: string | null) {
 export function useSendMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ threadId, content }: { threadId: string; content: string }) =>
+    mutationFn: ({ threadId, content, images }: { threadId: string; content: string; images?: string[] }) =>
       fetchJson(`${API}/threads/${threadId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, images }),
       }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['messages', variables.threadId] });
@@ -112,6 +112,22 @@ export function useSendMessage() {
       qc.invalidateQueries({ queryKey: ['threads'] });
     },
   });
+}
+
+// Multipart upload to POST /threads/:threadId/images. Returns the relative
+// data-dir paths (e.g. "images/<threadId>/<uuid>.png") to pass into
+// /threads/:threadId/messages on the next call.
+export async function uploadImages(threadId: string, files: File[]): Promise<string[]> {
+  if (files.length === 0) return [];
+  const form = new FormData();
+  for (const f of files) form.append('image', f, f.name);
+  const res = await fetch(`${API}/threads/${threadId}/images`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as Record<string, string>).error ?? `Upload failed: HTTP ${res.status}`);
+  }
+  const data = (await res.json()) as { paths: string[] };
+  return data.paths;
 }
 
 export function useAbortSession() {

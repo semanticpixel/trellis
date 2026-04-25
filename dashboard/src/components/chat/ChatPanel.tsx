@@ -48,9 +48,9 @@ export function ChatPanel({
   const abortSession = useAbortSession();
   const { data: repos } = useRepos(thread?.workspace_id ?? undefined);
 
-  const handleSend = (content: string) => {
+  const handleSend = (content: string, images?: string[]) => {
     if (!threadId) return;
-    sendMessage.mutate({ threadId, content });
+    sendMessage.mutate({ threadId, content, images });
   };
 
   const handleAbort = () => {

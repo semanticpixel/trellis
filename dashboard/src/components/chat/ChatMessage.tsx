@@ -80,6 +80,9 @@ export function ChatMessage({
     <div className={`${styles.row} ${isUser ? styles.rowUser : styles.rowAssistant}`}>
       <div className={`${styles.message} ${isUser ? styles.user : styles.assistant}`}>
         <div className={styles.content}>
+          {isUser && message.images && message.images.length > 0 && (
+            <ImageGrid paths={message.images} />
+          )}
           {isUser ? (
             <UserMessageContent text={message.content} onOpenFile={onOpenFile} />
           ) : (
@@ -216,6 +219,29 @@ function UserMessageContent({ text, onOpenFile }: { text: string; onOpenFile?: (
         ),
       )}
     </p>
+  );
+}
+
+// Editing a sent message only edits text in v1 — the attachment set is frozen
+// at send time. See PLAN.md item 34 "Out of scope".
+function ImageGrid({ paths }: { paths: string[] }) {
+  return (
+    <div className={styles.imageGrid}>
+      {paths.map((p, i) => {
+        const src = `/files/${p}`;
+        return (
+          <button
+            key={`${p}_${i}`}
+            type="button"
+            className={styles.imageCell}
+            onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
+            title="Open image"
+          >
+            <img src={src} loading="lazy" alt="attached" className={styles.image} />
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

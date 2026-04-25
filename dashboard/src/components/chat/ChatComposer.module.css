@@ -3,12 +3,55 @@
  * `.inner`. */
 .composer {
   border-top: 1px solid var(--border-primary);
+  position: relative;
 }
 
 .inner {
   padding-block: var(--space-md);
   width: min(var(--content-width), 100% - var(--content-padding) * 2);
   margin-inline: auto;
+  position: relative;
+}
+
+.attachError {
+  margin-bottom: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--error-subtle);
+  color: var(--error);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-subtle);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.spinner {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-primary);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: composerSpin 700ms linear infinite;
+}
+
+@keyframes composerSpin {
+  to { transform: rotate(360deg); }
 }
 
 .inputWrap {

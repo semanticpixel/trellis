@@ -9,11 +9,31 @@ import type {
   CreateWorkspaceRequest,
   CreateThreadRequest,
   CreateAnnotationRequest,
-  SendMessageRequest,
   ThreadStatus,
 } from '../shared/types.js';
 import { v4 as uuid } from 'uuid';
+import { rmSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { DEFAULT_WORKSPACE_COLOR, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../shared/constants.js';
+
+// Raw shape of a `messages` row before JSON-typed columns are parsed.
+type MessageRow = Omit<Message, 'images'> & { images: string | null };
+
+function hydrateMessage(row: MessageRow): Message {
+  let images: string[] | null = null;
+  if (row.images) {
+    try {
+      const parsed = JSON.parse(row.images);
+      if (Array.isArray(parsed) && parsed.every((p) => typeof p === 'string')) {
+        images = parsed;
+      }
+    } catch {
+      // Treat unparseable image JSON as no images rather than crashing reads.
+    }
+  }
+  return { ...row, images };
+}
 
 export class Store {
   private db: Database.Database;
@@ -114,6 +134,13 @@ export class Store {
     // error and let everything else propagate.
     try {
       this.db.exec('ALTER TABLE annotations ADD COLUMN context_snippet TEXT');
+    } catch (err) {
+      if (!(err instanceof Error) || !err.message.includes('duplicate column')) {
+        throw err;
+      }
+    }
+    try {
+      this.db.exec('ALTER TABLE messages ADD COLUMN images TEXT');
     } catch (err) {
       if (!(err instanceof Error) || !err.message.includes('duplicate column')) {
         throw err;
@@ -231,6 +258,9 @@ export class Store {
 
   deleteThread(id: string): void {
     this.db.prepare('DELETE FROM threads WHERE id = ?').run(id);
+    // Cascade: remove any uploaded images on disk for this thread.
+    const imageDir = join(homedir(), '.trellis', 'images', id);
+    rmSync(imageDir, { recursive: true, force: true });
   }
 
   recoverRunningThreads(): string[] {
@@ -246,28 +276,40 @@ export class Store {
 
   listMessages(threadId: string, limit = 100, beforeId?: number): Message[] {
     if (beforeId) {
-      return this.db.prepare(
+      const rows = this.db.prepare(
         'SELECT * FROM messages WHERE thread_id = ? AND id < ? ORDER BY id DESC LIMIT ?'
-      ).all(threadId, beforeId, limit) as Message[];
+      ).all(threadId, beforeId, limit) as MessageRow[];
+      return rows.map(hydrateMessage);
     }
-    return this.db.prepare(
+    const rows = this.db.prepare(
       'SELECT * FROM messages WHERE thread_id = ? ORDER BY id ASC'
-    ).all(threadId) as Message[];
+    ).all(threadId) as MessageRow[];
+    return rows.map(hydrateMessage);
   }
 
-  createMessage(threadId: string, role: string, content: string, toolName?: string, toolUseId?: string): Message {
+  createMessage(
+    threadId: string,
+    role: string,
+    content: string,
+    toolName?: string,
+    toolUseId?: string,
+    images?: string[],
+  ): Message {
+    const imagesJson = images && images.length > 0 ? JSON.stringify(images) : null;
     const result = this.db.prepare(
-      'INSERT INTO messages (thread_id, role, content, tool_name, tool_use_id) VALUES (?, ?, ?, ?, ?)'
-    ).run(threadId, role, content, toolName ?? null, toolUseId ?? null);
+      'INSERT INTO messages (thread_id, role, content, tool_name, tool_use_id, images) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(threadId, role, content, toolName ?? null, toolUseId ?? null, imagesJson);
 
     // Update thread's updated_at
     this.db.prepare('UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(threadId);
 
-    return this.db.prepare('SELECT * FROM messages WHERE id = ?').get(result.lastInsertRowid) as Message;
+    const row = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(result.lastInsertRowid) as MessageRow;
+    return hydrateMessage(row);
   }
 
   getMessage(messageId: number): Message | undefined {
-    return this.db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId) as Message | undefined;
+    const row = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId) as MessageRow | undefined;
+    return row ? hydrateMessage(row) : undefined;
   }
 
   deleteMessagesFromId(threadId: string, fromId: number): number {

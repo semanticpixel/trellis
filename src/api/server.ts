@@ -3,6 +3,9 @@ import { createServer as createHttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import * as pty from 'node-pty';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { Store } from '../db/store.js';
 import { SessionManager } from '../session/manager.js';
 import { createRoutes } from './routes.js';
@@ -118,6 +121,19 @@ export function createServer(store: Store, port: number): { httpServer: ReturnTy
   const app = express();
   app.use(cors());
   app.use(express.json());
+
+  // Static serving for uploaded images. Paths are uuid-stamped so we can mark
+  // them immutable for the browser cache.
+  const imageDir = join(homedir(), '.trellis', 'images');
+  mkdirSync(imageDir, { recursive: true });
+  app.use(
+    '/files/images',
+    express.static(imageDir, {
+      maxAge: '1y',
+      immutable: true,
+      fallthrough: false,
+    }),
+  );
 
   const httpServer = createHttpServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: WS_PATH });

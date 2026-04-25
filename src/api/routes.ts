@@ -1,9 +1,11 @@
 import { Router, type Request } from 'express';
+import multer from 'multer';
 import type { ServerContext } from './server.js';
-import { existsSync, readdirSync, statSync, appendFileSync } from 'fs';
+import { existsSync, readdirSync, statSync, appendFileSync, mkdirSync, writeFileSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { homedir } from 'os';
+import { v4 as uuid } from 'uuid';
 import { getDiffSummary, getFileDiff, stageFile, revertFile, readPlanFile, listBranches, checkoutBranch, createBranch, getCurrentBranch } from '../git/operations.js';
 import { formatFeedback } from '../review/feedback.js';
 import { parsePlan } from '../review/plan-parser.js';
@@ -39,6 +41,25 @@ function readStringField(req: Request, field: string): string | undefined {
   if (typeof fromQuery === 'string') return fromQuery;
   return undefined;
 }
+
+// Image upload: limits + MIME map. Both Anthropic and OpenAI accept these
+// four formats. Per-image cap matches Anthropic's 5MB ceiling.
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const IMAGE_MAX_PER_REQUEST = 10;
+const IMAGE_MIME_TO_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: IMAGE_MAX_BYTES,
+    files: IMAGE_MAX_PER_REQUEST,
+  },
+});
 
 export function createRoutes(ctx: ServerContext): Router {
   const router = Router();
@@ -245,8 +266,72 @@ export function createRoutes(ctx: ServerContext): Router {
     res.json(messages);
   });
 
+  router.post(
+    '/threads/:threadId/images',
+    (req, res, next) => {
+      imageUpload.array('image', IMAGE_MAX_PER_REQUEST)(req, res, (err: unknown) => {
+        if (err instanceof multer.MulterError) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            res.status(413).json({ error: `Image too large (max ${IMAGE_MAX_BYTES / (1024 * 1024)} MB)` });
+            return;
+          }
+          if (err.code === 'LIMIT_FILE_COUNT') {
+            res.status(413).json({ error: `Too many images (max ${IMAGE_MAX_PER_REQUEST} per request)` });
+            return;
+          }
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        if (err) {
+          res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+          return;
+        }
+        next();
+      });
+    },
+    (req, res) => {
+      const threadId = req.params.threadId;
+      const thread = store.getThread(threadId);
+      if (!thread) {
+        res.status(404).json({ error: 'Thread not found' });
+        return;
+      }
+
+      const files = (req.files ?? []) as Express.Multer.File[];
+      if (files.length === 0) {
+        res.status(400).json({ error: 'No image files provided (field name: "image")' });
+        return;
+      }
+
+      // Reject the whole batch if any file fails MIME check — partial uploads
+      // would leave the client managing a mixed result and we'd rather fail
+      // loudly than silently drop attachments.
+      for (const f of files) {
+        if (!IMAGE_MIME_TO_EXT[f.mimetype]) {
+          res.status(415).json({
+            error: `Unsupported image type: ${f.mimetype}. Allowed: ${Object.keys(IMAGE_MIME_TO_EXT).join(', ')}`,
+          });
+          return;
+        }
+      }
+
+      const threadDir = join(homedir(), '.trellis', 'images', threadId);
+      mkdirSync(threadDir, { recursive: true });
+
+      const paths: string[] = [];
+      for (const f of files) {
+        const ext = IMAGE_MIME_TO_EXT[f.mimetype];
+        const filename = `${uuid()}.${ext}`;
+        writeFileSync(join(threadDir, filename), f.buffer);
+        paths.push(`images/${threadId}/${filename}`);
+      }
+
+      res.status(201).json({ paths });
+    },
+  );
+
   router.post('/threads/:threadId/messages', (req, res) => {
-    const { content } = req.body;
+    const { content, images } = req.body as { content?: string; images?: unknown };
     if (!content) {
       res.status(400).json({ error: 'content is required' });
       return;
@@ -259,8 +344,24 @@ export function createRoutes(ctx: ServerContext): Router {
       return;
     }
 
+    // Validate images array shape and that each path is scoped to this
+    // thread's image dir — clients only get to reference paths they just
+    // uploaded (or that already live under images/<threadId>/).
+    let imagePaths: string[] | undefined;
+    if (Array.isArray(images) && images.length > 0) {
+      const expectedPrefix = `images/${threadId}/`;
+      const valid: string[] = [];
+      for (const p of images) {
+        if (typeof p !== 'string') continue;
+        if (!p.startsWith(expectedPrefix)) continue;
+        if (p.includes('..')) continue;
+        valid.push(p);
+      }
+      if (valid.length > 0) imagePaths = valid;
+    }
+
     // Store user message
-    const message = store.createMessage(threadId, 'user', content);
+    const message = store.createMessage(threadId, 'user', content, undefined, undefined, imagePaths);
 
     // Auto-title: first 60 chars of first user message
     const allMessages = store.listMessages(threadId);

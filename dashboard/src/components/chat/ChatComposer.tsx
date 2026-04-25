@@ -1,15 +1,20 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import styles from './ChatComposer.module.css';
 import { MentionDropdown } from './MentionDropdown';
-import { useFileSearch } from '../../hooks/useWorkspaces';
+import { AttachmentStrip, type ComposerAttachment } from './AttachmentStrip';
+import { useFileSearch, uploadImages } from '../../hooks/useWorkspaces';
 
 const DRAFT_PREFIX = 'trellis:draft:';
+const ATTACH_MAX_BYTES = 5 * 1024 * 1024;
+const ATTACH_MAX_COUNT = 10;
+const ATTACH_ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const ATTACH_ERROR_TIMEOUT_MS = 4000;
 
 interface ChatComposerProps {
   threadId: string;
   workspaceId: string | null;
   repoId?: string | null;
-  onSend: (content: string) => void;
+  onSend: (content: string, images?: string[]) => void;
   disabled: boolean;
   isStreaming?: boolean;
   onAbort?: () => void;
@@ -73,7 +78,12 @@ export function ChatComposer({
   const [mention, setMention] = useState<MentionState | null>(null);
   const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dragDepthRef = useRef(0);
 
   // Resize textarea to fit a restored draft on mount.
   useEffect(() => {
@@ -154,17 +164,157 @@ export function ChatComposer({
     [mention, value],
   );
 
-  const handleSubmit = useCallback(() => {
+  // Revoke any object URLs we created for thumbnails when the composer
+  // unmounts, so we don't leak blob references between thread switches.
+  useEffect(() => {
+    return () => {
+      for (const att of attachments) URL.revokeObjectURL(att.previewUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-clear inline error after a few seconds.
+  useEffect(() => {
+    if (!attachError) return;
+    const t = setTimeout(() => setAttachError(null), ATTACH_ERROR_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [attachError]);
+
+  const addFiles = useCallback(
+    (files: File[]) => {
+      if (files.length === 0) return;
+      const accepted: ComposerAttachment[] = [];
+      let rejectedSize = false;
+      let rejectedType = false;
+      for (const file of files) {
+        if (!ATTACH_ALLOWED_MIME.has(file.type)) {
+          rejectedType = true;
+          continue;
+        }
+        if (file.size > ATTACH_MAX_BYTES) {
+          rejectedSize = true;
+          continue;
+        }
+        accepted.push({
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        });
+      }
+      setAttachments((prev) => {
+        const remaining = ATTACH_MAX_COUNT - prev.length;
+        const slice = accepted.slice(0, Math.max(0, remaining));
+        // Revoke previews we couldn't fit so blob memory isn't leaked.
+        for (const dropped of accepted.slice(slice.length)) URL.revokeObjectURL(dropped.previewUrl);
+        if (slice.length < accepted.length) {
+          setAttachError(`Maximum ${ATTACH_MAX_COUNT} images per message`);
+        }
+        return [...prev, ...slice];
+      });
+      if (rejectedType) setAttachError('Only PNG, JPEG, GIF, or WebP images are supported');
+      else if (rejectedSize) setAttachError(`Image too large (max ${ATTACH_MAX_BYTES / (1024 * 1024)} MB)`);
+    },
+    [],
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
-    onSend(trimmed);
+    // Allow image-only sends only if there is also at least 1 char of text —
+    // empty string content would be rejected by the backend `content is
+    // required` check, so coerce to a single space when only images are
+    // attached.
+    if (!trimmed && attachments.length === 0) return;
+    if (disabled || uploading) return;
+
+    let uploadedPaths: string[] = [];
+    if (attachments.length > 0) {
+      try {
+        setUploading(true);
+        uploadedPaths = await uploadImages(threadId, attachments.map((a) => a.file));
+      } catch (err) {
+        setAttachError(err instanceof Error ? err.message : 'Image upload failed');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
+    const contentToSend = trimmed || (uploadedPaths.length > 0 ? '(image)' : '');
+    onSend(contentToSend, uploadedPaths.length > 0 ? uploadedPaths : undefined);
+
+    for (const att of attachments) URL.revokeObjectURL(att.previewUrl);
+    setAttachments([]);
     setValue('');
     setMention(null);
     localStorage.removeItem(`${DRAFT_PREFIX}${threadId}`);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [value, disabled, onSend, threadId]);
+  }, [value, attachments, disabled, uploading, onSend, threadId]);
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind !== 'file') continue;
+        if (!item.type.startsWith('image/')) continue;
+        const f = item.getAsFile();
+        if (f) files.push(f);
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    },
+    [addFiles],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDragActive(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragActive(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      dragDepthRef.current = 0;
+      setDragActive(false);
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      const images = files.filter((f) => f.type.startsWith('image/'));
+      const nonImages = files.length - images.length;
+      if (nonImages > 0 && images.length === 0) {
+        setAttachError('Only image files are supported');
+        return;
+      }
+      if (images.length > 0) addFiles(images);
+    },
+    [addFiles],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (mention !== null && results.length > 0) {
@@ -216,9 +366,24 @@ export function ChatComposer({
     updateMention(ta.value, ta.selectionStart ?? ta.value.length);
   };
 
+  const showStop = isStreaming && onAbort;
+  const showSpinner = uploading;
+
   return (
-    <div className={styles.composer}>
+    <div
+      className={styles.composer}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className={styles.inner}>
+        {attachError && <div className={styles.attachError} role="alert">{attachError}</div>}
+        <AttachmentStrip
+          attachments={attachments}
+          onRemove={removeAttachment}
+          disabled={uploading}
+        />
         <div className={styles.inputWrap}>
         {mention !== null && (
           <MentionDropdown
@@ -236,12 +401,20 @@ export function ChatComposer({
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           onSelect={handleSelect}
+          onPaste={handlePaste}
           onBlur={() => setMention(null)}
-          placeholder="Type a message... (Enter to send, Shift+Enter for newline, @ to mention a file)"
+          placeholder="Type a message... (Enter to send, Shift+Enter for newline, @ to mention a file, paste/drop images)"
           rows={1}
-          disabled={disabled}
+          disabled={disabled || uploading}
         />
-        {isStreaming && onAbort && (
+        {showSpinner && (
+          <div
+            className={styles.spinner}
+            role="status"
+            aria-label="Uploading images"
+          />
+        )}
+        {!showSpinner && showStop && (
           <button
             type="button"
             className={styles.stopButton}
@@ -253,6 +426,11 @@ export function ChatComposer({
           </button>
         )}
         </div>
+        {dragActive && (
+          <div className={styles.dropOverlay} aria-hidden="true">
+            Drop image to attach
+          </div>
+        )}
       </div>
     </div>
   );

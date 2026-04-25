@@ -56,6 +56,7 @@ export function ChatMessageList({ messages, streamingText, isStreaming, onOpenFi
                 tool_name: null,
                 tool_use_id: null,
                 token_count: null,
+                images: null,
                 created_at: '',
               }}
             />

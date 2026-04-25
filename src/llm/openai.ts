@@ -154,6 +154,13 @@ function convertMessages(
           },
         ],
       });
+    } else if (msg.role === 'user' && msg.images && msg.images.length > 0) {
+      const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = msg.images.map((img) => ({
+        type: 'image_url',
+        image_url: { url: `data:${img.mediaType};base64,${img.data}` },
+      }));
+      parts.push({ type: 'text', text: msg.content });
+      result.push({ role: 'user', content: parts });
     } else {
       result.push({
         role: msg.role as 'user' | 'assistant',

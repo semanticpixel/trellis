@@ -172,8 +172,8 @@ interface OllamaChatChunk {
 function convertMessages(
   messages: StreamRequest['messages'],
   systemPrompt: string,
-): Array<{ role: string; content: string; tool_calls?: unknown[] }> {
-  const result: Array<{ role: string; content: string; tool_calls?: unknown[] }> = [
+): Array<{ role: string; content: string; tool_calls?: unknown[]; images?: string[] }> {
+  const result: Array<{ role: string; content: string; tool_calls?: unknown[]; images?: string[] }> = [
     { role: 'system', content: systemPrompt },
   ];
 
@@ -190,6 +190,15 @@ function convertMessages(
             arguments: JSON.parse(msg.content),
           },
         }],
+      });
+    } else if (msg.role === 'user' && msg.images && msg.images.length > 0) {
+      // Ollama: bare base64 strings (no data URI prefix). Only multimodal
+      // models (llava etc.) accept these — non-vision models will surface a
+      // server-side error which we propagate as-is.
+      result.push({
+        role: 'user',
+        content: msg.content,
+        images: msg.images.map((img) => img.data),
       });
     } else {
       result.push({ role: msg.role, content: msg.content });

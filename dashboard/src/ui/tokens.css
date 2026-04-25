@@ -1,11 +1,15 @@
+/* stylelint-disable no-duplicate-selectors -- Token groups intentionally repeat :root for base and theme override sections. */
+
 /* ── Design Tokens ──────────────────────────────────────────── */
+
 /* All colors in components MUST reference these variables.      */
+
 /* No hardcoded hex values in component CSS.                     */
 
 :root {
   /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'SF Mono', SFMono-Regular, 'Cascadia Code', Menlo, monospace;
+  --font-sans: -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-mono: 'SF Mono', sfmono-regular, 'Cascadia Code', menlo, monospace;
 
   /* Spacing */
   --space-xs: 4px;
@@ -34,28 +38,24 @@
 /* ── Light Theme ────────────────────────────────────────────── */
 
 :root {
-  --bg-primary: #ffffff;
+  --bg-primary: #fff;
   --bg-sidebar: #f8f8f8;
   --bg-hover: #f0f0f0;
   --bg-active: #e8e8e8;
-  --bg-input: #ffffff;
+  --bg-input: #fff;
   --bg-code: #f5f5f5;
   --bg-message-user: #f0f4ff;
-  --bg-message-assistant: #ffffff;
+  --bg-message-assistant: #fff;
   --bg-tool: #f8faf8;
-
   --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --text-tertiary: #999999;
-  --text-inverse: #ffffff;
-
+  --text-secondary: #666;
+  --text-tertiary: #999;
+  --text-inverse: #fff;
   --border-primary: #e5e5e5;
   --border-secondary: #d0d0d0;
-
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --accent-subtle: #eff6ff;
-
   --success: #16a34a;
   --success-subtle: #f0fdf4;
   --error: #dc2626;
@@ -66,21 +66,21 @@
   /* Status badges */
   --status-running: #2563eb;
   --status-approval: #16a34a;
-  --status-done: #999999;
+  --status-done: #999;
   --status-error: #dc2626;
 
   /* Diff */
-  --diff-add-bg: rgba(46, 160, 67, 0.10);
+  --diff-add-bg: rgb(46 160 67 / 10%);
   --diff-add-fg: #16a34a;
-  --diff-del-bg: rgba(248, 81, 73, 0.10);
+  --diff-del-bg: rgb(248 81 73 / 10%);
   --diff-del-fg: #dc2626;
 
   /* Shadows */
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.15);
-  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.2);
-  --bg-overlay: rgba(0, 0, 0, 0.4);
+  --shadow-subtle: 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-overlay: 0 0 0 9999px rgb(0 0 0 / 40%);
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 15%);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / 20%);
+  --bg-overlay: rgb(0 0 0 / 40%);
 }
 
 /* ── Dark Theme ─────────────────────────────────────────────── */
@@ -96,47 +96,43 @@
     --bg-message-user: #1a2332;
     --bg-message-assistant: #1a1a1a;
     --bg-tool: #1a2018;
-
     --text-primary: #e5e5e5;
     --text-secondary: #a0a0a0;
-    --text-tertiary: #666666;
+    --text-tertiary: #666;
     --text-inverse: #1a1a1a;
-
     --border-primary: #2e2e2e;
     --border-secondary: #3e3e3e;
-
     --accent: #3b82f6;
     --accent-hover: #60a5fa;
     --accent-subtle: #1e293b;
-
     --success: #22c55e;
     --success-subtle: #14271a;
     --error: #ef4444;
     --error-subtle: #2d1414;
     --warning: #eab308;
     --warning-subtle: #2d2714;
-
     --status-running: #3b82f6;
     --status-approval: #22c55e;
-    --status-done: #666666;
+    --status-done: #666;
     --status-error: #ef4444;
 
     /* Diff */
-    --diff-add-bg: rgba(46, 160, 67, 0.18);
+    --diff-add-bg: rgb(46 160 67 / 18%);
     --diff-add-fg: #3fb950;
-    --diff-del-bg: rgba(248, 81, 73, 0.18);
+    --diff-del-bg: rgb(248 81 73 / 18%);
     --diff-del-fg: #f85149;
 
     /* Shadows */
-    --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.15);
-    --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.6);
-    --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.35);
-    --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.45);
-    --bg-overlay: rgba(0, 0, 0, 0.6);
+    --shadow-subtle: 0 1px 2px rgb(0 0 0 / 15%);
+    --shadow-overlay: 0 0 0 9999px rgb(0 0 0 / 60%);
+    --shadow-popover: 0 8px 24px rgb(0 0 0 / 35%);
+    --shadow-modal: 0 8px 32px rgb(0 0 0 / 45%);
+    --bg-overlay: rgb(0 0 0 / 60%);
   }
 }
 
 /* ── Explicit Theme Override ────────────────────────────────── */
+
 /* data-theme="dark" forces dark regardless of OS preference   */
 
 :root[data-theme="dark"] {
@@ -149,89 +145,75 @@
   --bg-message-user: #1a2332;
   --bg-message-assistant: #1a1a1a;
   --bg-tool: #1a2018;
-
   --text-primary: #e5e5e5;
   --text-secondary: #a0a0a0;
-  --text-tertiary: #666666;
+  --text-tertiary: #666;
   --text-inverse: #1a1a1a;
-
   --border-primary: #2e2e2e;
   --border-secondary: #3e3e3e;
-
   --accent: #3b82f6;
   --accent-hover: #60a5fa;
   --accent-subtle: #1e293b;
-
   --success: #22c55e;
   --success-subtle: #14271a;
   --error: #ef4444;
   --error-subtle: #2d1414;
   --warning: #eab308;
   --warning-subtle: #2d2714;
-
   --status-running: #3b82f6;
   --status-approval: #22c55e;
-  --status-done: #666666;
+  --status-done: #666;
   --status-error: #ef4444;
-
-  --diff-add-bg: rgba(46, 160, 67, 0.18);
+  --diff-add-bg: rgb(46 160 67 / 18%);
   --diff-add-fg: #3fb950;
-  --diff-del-bg: rgba(248, 81, 73, 0.18);
+  --diff-del-bg: rgb(248 81 73 / 18%);
   --diff-del-fg: #f85149;
-
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.15);
-  --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.6);
-  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.45);
-  --bg-overlay: rgba(0, 0, 0, 0.6);
+  --shadow-subtle: 0 1px 2px rgb(0 0 0 / 15%);
+  --shadow-overlay: 0 0 0 9999px rgb(0 0 0 / 60%);
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 35%);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / 45%);
+  --bg-overlay: rgb(0 0 0 / 60%);
 }
 
 /* data-theme="light" forces light regardless of OS preference */
 :root[data-theme="light"] {
-  --bg-primary: #ffffff;
+  --bg-primary: #fff;
   --bg-sidebar: #f8f8f8;
   --bg-hover: #f0f0f0;
   --bg-active: #e8e8e8;
-  --bg-input: #ffffff;
+  --bg-input: #fff;
   --bg-code: #f5f5f5;
   --bg-message-user: #f0f4ff;
-  --bg-message-assistant: #ffffff;
+  --bg-message-assistant: #fff;
   --bg-tool: #f8faf8;
-
   --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --text-tertiary: #999999;
-  --text-inverse: #ffffff;
-
+  --text-secondary: #666;
+  --text-tertiary: #999;
+  --text-inverse: #fff;
   --border-primary: #e5e5e5;
   --border-secondary: #d0d0d0;
-
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --accent-subtle: #eff6ff;
-
   --success: #16a34a;
   --success-subtle: #f0fdf4;
   --error: #dc2626;
   --error-subtle: #fef2f2;
   --warning: #ca8a04;
   --warning-subtle: #fefce8;
-
   --status-running: #2563eb;
   --status-approval: #16a34a;
-  --status-done: #999999;
+  --status-done: #999;
   --status-error: #dc2626;
-
-  --diff-add-bg: rgba(46, 160, 67, 0.10);
+  --diff-add-bg: rgb(46 160 67 / 10%);
   --diff-add-fg: #16a34a;
-  --diff-del-bg: rgba(248, 81, 73, 0.10);
+  --diff-del-bg: rgb(248 81 73 / 10%);
   --diff-del-fg: #dc2626;
-
-  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-overlay: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.15);
-  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.2);
-  --bg-overlay: rgba(0, 0, 0, 0.4);
+  --shadow-subtle: 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-overlay: 0 0 0 9999px rgb(0 0 0 / 40%);
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 15%);
+  --shadow-modal: 0 8px 32px rgb(0 0 0 / 20%);
+  --bg-overlay: rgb(0 0 0 / 40%);
 }
 
 /* ── Global Reset ───────────────────────────────────────────── */

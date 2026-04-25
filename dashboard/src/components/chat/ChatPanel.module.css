@@ -36,7 +36,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  -webkit-user-select: none;
   user-select: none;
 }
 

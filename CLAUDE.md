@@ -34,6 +34,7 @@ trellis/
 ### CSS
 - No inline styles — use CSS Modules (`.module.css`) exclusively in React components.
 - No hardcoded colors — all colors reference CSS custom properties from `tokens.css`.
+- Use CSS logical properties (`margin-inline-start`, `padding-block-end`, `inset-block-start`) — never physical equivalents. Stylelint enforces this; run `pnpm run lint:css` before commit.
 
 ### Syntax highlighting
 - Use `shiki` (lazy-loaded singleton) for diff rows and chat code blocks.

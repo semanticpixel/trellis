@@ -47,10 +47,10 @@
   border: 2px solid var(--border-primary);
   border-block-start-color: var(--accent);
   border-radius: 50%;
-  animation: composerSpin 700ms linear infinite;
+  animation: composer-spin 700ms linear infinite;
 }
 
-@keyframes composerSpin {
+@keyframes composer-spin {
   to { transform: rotate(360deg); }
 }
 
@@ -109,6 +109,6 @@
   display: inline-block;
   width: 10px;
   height: 10px;
-  background: currentColor;
+  background: currentcolor;
   border-radius: 1px;
 }

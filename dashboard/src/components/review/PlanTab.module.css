@@ -54,7 +54,7 @@
   line-height: 1.5;
   font-family: var(--font-mono);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .annotationCount {

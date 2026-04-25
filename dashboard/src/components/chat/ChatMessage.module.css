@@ -1,3 +1,5 @@
+/* stylelint-disable no-descending-specificity -- Message action button states stay grouped by control for readability. */
+
 /* Wrapper that stacks the message bubble with its action row below. */
 .row {
   display: flex;
@@ -196,7 +198,7 @@
 .userText {
   margin: 0;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .imageGrid {

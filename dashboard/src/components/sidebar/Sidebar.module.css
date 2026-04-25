@@ -22,7 +22,6 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -153,7 +152,7 @@
   cursor: pointer;
   font-size: 12px;
   color: var(--text-primary);
-  text-align: left;
+  text-align: start;
 }
 
 .searchResultRow:hover {

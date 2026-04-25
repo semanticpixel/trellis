@@ -64,7 +64,7 @@
   padding: 5px var(--space-md);
   background: transparent;
   border: none;
-  text-align: left;
+  text-align: start;
   font-size: 12px;
   color: var(--text-primary);
   cursor: pointer;

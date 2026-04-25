@@ -1,3 +1,4 @@
+/* stylelint-disable property-no-unknown, value-keyword-case -- CSS Modules composes uses local camelCase class names. */
 .overlay {
   position: fixed;
   inset: 0;
@@ -504,7 +505,7 @@
   border-radius: var(--radius-md);
   font-size: 12px;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .mcpImportBanner:hover {

@@ -58,7 +58,7 @@
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: border-color var(--transition-fast), background var(--transition-fast);
 }

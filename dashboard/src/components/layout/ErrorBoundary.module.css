@@ -37,7 +37,6 @@
 .message {
   font-size: 13px;
   color: var(--text-secondary);
-  word-break: break-word;
   font-family: var(--font-mono);
   background: var(--bg-code);
   padding: var(--space-sm) var(--space-md);

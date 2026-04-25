@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit && pnpm -C dashboard exec tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint:css": "stylelint 'dashboard/src/**/*.css'",
+    "lint:css:fix": "stylelint 'dashboard/src/**/*.css' --fix",
     "electron:dev": "node scripts/electron-dev.mjs",
     "rebuild:native": "pnpm rebuild better-sqlite3 node-pty",
     "bundle": "git bundle create ~/Desktop/trellis.bundle --all"
@@ -42,6 +44,9 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.0",
     "electron": "^35.0.0",
+    "stylelint": "^17.9.0",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-use-logical": "^2.1.3",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

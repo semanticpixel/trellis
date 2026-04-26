@@ -37,19 +37,18 @@
 .message {
   font-size: 13px;
   color: var(--text-secondary);
-  word-break: break-word;
   font-family: var(--font-mono);
   background: var(--bg-code);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   max-width: 100%;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .actions {
   display: flex;
   gap: var(--space-sm);
-  margin-top: var(--space-xs);
+  margin-block-start: var(--space-xs);
 }
 
 .reload,

@@ -16,7 +16,7 @@
   font-size: 11px;
   color: var(--text-secondary);
   background: var(--bg-code);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .branchBase {
@@ -46,7 +46,7 @@
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
   background: var(--bg-code);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .editorFileName {
@@ -137,7 +137,7 @@
   color: var(--text-tertiary);
   font-family: var(--font-mono);
   font-size: 10px;
-  text-align: right;
+  text-align: end;
   cursor: pointer;
   user-select: none;
   line-height: 1.5;
@@ -213,12 +213,12 @@
   padding: var(--space-xs) var(--space-md);
   background: var(--bg-code);
   border: none;
-  border-top: 1px dashed var(--border-primary);
-  border-bottom: 1px dashed var(--border-primary);
+  border-block-start: 1px dashed var(--border-primary);
+  border-block-end: 1px dashed var(--border-primary);
   color: var(--text-tertiary);
   font-family: var(--font-mono);
   font-size: 11px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -233,10 +233,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-left: 100px;
+  margin-inline-start: 100px;
   padding: var(--space-xs) var(--space-sm);
   background: var(--accent-subtle);
-  border-left: 3px solid var(--accent);
+  border-inline-start: 3px solid var(--accent);
 }
 
 .annotationPill {
@@ -280,7 +280,7 @@
 
 .inlineCommentContainer {
   padding: var(--space-sm);
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
   background: var(--bg-primary);
 }
 
@@ -288,11 +288,11 @@
   font-size: 11px;
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  margin-bottom: var(--space-xs);
+  margin-block-end: var(--space-xs);
 }
 
 .annotationList {
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
   padding: var(--space-sm);
   overflow-y: auto;
   max-height: 200px;
@@ -302,7 +302,7 @@
   display: flex;
   gap: var(--space-sm);
   align-items: flex-start;
-  margin-bottom: var(--space-xs);
+  margin-block-end: var(--space-xs);
 }
 
 .annotationLineRef {
@@ -311,7 +311,7 @@
   color: var(--text-tertiary);
   min-width: 32px;
   flex-shrink: 0;
-  padding-top: var(--space-sm);
+  padding-block-start: var(--space-sm);
 }
 
 .placeholder {

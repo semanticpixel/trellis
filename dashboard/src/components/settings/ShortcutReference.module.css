@@ -25,7 +25,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .title {
@@ -55,11 +55,11 @@
 }
 
 .section {
-  margin-bottom: var(--space-xl);
+  margin-block-end: var(--space-xl);
 }
 
 .section:last-child {
-  margin-bottom: 0;
+  margin-block-end: 0;
 }
 
 .sectionTitle {
@@ -68,7 +68,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-tertiary);
-  margin-bottom: var(--space-sm);
+  margin-block-end: var(--space-sm);
 }
 
 .list {
@@ -106,7 +106,7 @@
   padding: 0 6px;
   background: var(--bg-code);
   border: 1px solid var(--border-secondary);
-  border-bottom-width: 2px;
+  border-block-end-width: 2px;
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font-mono);

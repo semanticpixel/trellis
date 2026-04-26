@@ -1,5 +1,5 @@
 .block {
-  margin-bottom: 2px;
+  margin-block-end: 2px;
 }
 
 .header {
@@ -14,7 +14,7 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-  text-align: left;
+  text-align: start;
   user-select: none;
   outline: none;
 }
@@ -74,7 +74,7 @@
 }
 
 .body {
-  padding-left: 10px;
+  padding-inline-start: 10px;
 }
 
 .separator {

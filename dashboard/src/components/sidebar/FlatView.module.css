@@ -5,7 +5,7 @@
 }
 
 .block {
-  margin-bottom: var(--space-xs);
+  margin-block-end: var(--space-xs);
 }
 
 .header {
@@ -44,13 +44,13 @@
   gap: var(--space-xs);
   width: 100%;
   padding: 4px var(--space-lg);
-  padding-left: 30px;
+  padding-inline-start: 30px;
   background: transparent;
   border: none;
   cursor: pointer;
   font-size: 12px;
   color: var(--text-primary);
-  text-align: left;
+  text-align: start;
   border-radius: var(--radius-sm);
 }
 
@@ -71,7 +71,7 @@
 
 .empty {
   padding: 4px var(--space-lg);
-  padding-left: 30px;
+  padding-inline-start: 30px;
   font-size: 11px;
   color: var(--text-tertiary);
 }
@@ -104,7 +104,7 @@
   width: 10px;
   height: 10px;
   border: 1.5px solid var(--border-secondary);
-  border-top-color: var(--status-running);
+  border-block-start-color: var(--status-running);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;

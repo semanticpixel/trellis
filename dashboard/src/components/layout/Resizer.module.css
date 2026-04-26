@@ -16,8 +16,6 @@
 .handle::after {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -2px;
-  right: -2px;
+  inset-block: 0;
+  inset-inline: -2px;
 }

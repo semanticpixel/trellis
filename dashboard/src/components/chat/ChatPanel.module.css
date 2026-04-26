@@ -10,8 +10,8 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
-  padding-top: 38px; /* macOS traffic lights */
+  border-block-end: 1px solid var(--border-primary);
+  padding-block-start: 38px; /* macOS traffic lights */
   -webkit-app-region: drag;
 }
 
@@ -36,7 +36,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -86,5 +85,5 @@
   background: var(--error-subtle);
   color: var(--error);
   font-size: 12px;
-  border-top: 1px solid var(--error);
+  border-block-start: 1px solid var(--error);
 }

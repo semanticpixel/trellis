@@ -46,6 +46,90 @@ ou left it. Put laptop to sleep for 30 min, wake, same result.
 
 ---
 
+### ~~55. Adopt CSS logical properties + add Stylelint~~ DONE
+
+Adopted Stylelint for dashboard CSS, migrated physical CSS properties to logical equivalents, wired CSS linting into CI, and documented the rule in CLAUDE.md.
+
+<details>
+<summary>Original spec</summary>
+
+**What:** Migrate every CSS Module in the dashboard from physical properties (`margin-left`, `padding-right`, `top`, `border-bottom`, etc.) to logical properties (`margin-inline-start`, `padding-inline-end`, `inset-block-start`, `border-block-end`). Add Stylelint with the `stylelint-use-logical` plugin so future drift is caught automatically.
+
+**Why:**
+- **RTL readiness.** Physical properties hardcode left/right; logical properties flow with the writing direction. Even if Trellis is LTR-only today, mirroring is one CSS variable away when we want it.
+- **Consistency catch-net.** No lint today means physical/logical can be mixed file-to-file. One unified vocabulary across the codebase reads better and reviews faster.
+- **Free wins from Stylelint.** Beyond `use-logical`, `stylelint-config-standard` catches duplicate selectors, invalid color values, and other real defects we currently rely on review to spot.
+- **Codex will execute this.** The migration is mechanical (`stylelint --fix` + `csstools/use-logical` autofix handles ~95%), and the residual hand-edits are localized. Good fit for an isolated agent run.
+
+**Config:** Trimmed to only what Trellis needs. The only override is for camelCase class names — we use them in CSS Modules (`.attachError`, `.dropOverlay`), and `stylelint-config-standard` defaults to kebab-case which would flag every class.
+
+```js
+// stylelint.config.cjs (repo root)
+module.exports = {
+  extends: ['stylelint-config-standard'],
+  plugins: ['stylelint-use-logical'],
+  rules: {
+    'csstools/use-logical': ['always', {
+      // Width/height stay physical — they don't have a writing-mode counterpart
+      // worth the indirection, and `block-size`/`inline-size` would obscure intent.
+      except: ['width', 'height', 'min-width', 'min-height', 'max-width', 'max-height'],
+    }],
+    'selector-class-pattern': null, // CSS Modules use camelCase classes
+  },
+  ignoreFiles: ['dashboard/dist/**/*', 'dist/**/*', 'node_modules/**/*'],
+};
+```
+
+If during the migration any `stylelint-config-standard` rule turns out to be genuinely noisy (e.g. `no-descending-specificity` flags too many legitimate hover-before-base patterns), disable that specific rule **with a one-line comment explaining why**. Don't preemptively disable rules.
+
+**Implementation:**
+1. **Add deps:** `pnpm add -D -w stylelint stylelint-config-standard stylelint-use-logical`.
+2. **Create `stylelint.config.cjs`** at the repo root with the config above.
+3. **Add scripts to root `package.json`:**
+   ```json
+   {
+     "scripts": {
+       "lint:css": "stylelint 'dashboard/src/**/*.css'",
+       "lint:css:fix": "stylelint 'dashboard/src/**/*.css' --fix"
+     }
+   }
+   ```
+4. **Run the autofix in two passes:**
+   - First pass: `pnpm run lint:css:fix` — handles the bulk of physical→logical conversions (`margin-left → margin-inline-start`, etc.) automatically via the `csstools/use-logical` plugin.
+   - Second pass: review the remaining warnings/errors. The plugin can't always pick the right side for shorthand `margin: 4px 8px` (that's already block + inline — fine) or for cases where intent matters (e.g. `text-align: left` should usually become `text-align: start`). Sweep these by hand.
+5. **Run `pnpm typecheck && pnpm test`** + smoke-test the dashboard visually. Logical properties resolve to the same physical values in LTR, so there should be **zero visual regressions**. If anything moves, that's a bug — investigate.
+6. **Add to CI:** wire `pnpm run lint:css` into the existing CI pipeline (or pre-commit hook if one exists). Fast (<2s).
+7. **Update `CLAUDE.md`** under the CSS section with one new bullet: *"Use CSS logical properties (`margin-inline-start`, `padding-block-end`, `inset-block-start`) — never physical equivalents. Stylelint enforces this; run `pnpm run lint:css` before commit."*
+
+**Files to touch:**
+- `stylelint.config.cjs` (new)
+- `package.json` — add deps + lint scripts
+- All CSS Module files in `dashboard/src/**/*.module.css` — autofixed, with manual review for `text-align`, hardcoded `left:`/`right:` positioning, etc.
+- `CLAUDE.md` — one-line CSS rule update
+- CI config (whichever file currently runs `pnpm typecheck` / `pnpm test`)
+
+**Acceptance:**
+1. `pnpm run lint:css` passes with zero errors after the migration.
+2. Diff against `main` shows only physical→logical property renames in CSS files; no rule changes, no value changes (other than `text-align` corrections).
+3. Visual smoke: open the dashboard, click through chat / sidebar / review panel / settings — pixel-identical to pre-migration.
+4. Adding a new physical property (`margin-left: 8px`) to any CSS file fails `pnpm run lint:css`.
+5. Stylelint runs in CI and blocks merge on violations.
+
+**Out of scope:**
+- Adopting SCSS or any preprocessor.
+- RTL-specific styling work (just the property migration; no `dir="rtl"` testing yet).
+- Migrating inline `style={{}}` props (there should be none — CLAUDE.md already forbids them; if you find any, log a separate item).
+- Token-level changes to `tokens.css` (those use CSS custom properties, not physical/logical positioning).
+- Auto-fixing `text-align: left/right` to `start/end` — handle by hand because some places (e.g. timestamps that should always be right-aligned visually regardless of writing direction) genuinely want physical alignment.
+
+**Owner:** Codex agent run. Suggested commit split: (1) config + scripts + deps, (2) autofixed CSS changes, (3) manual `text-align` sweep + CLAUDE.md update + add `pnpm run lint:css` to the workflow created by item 56. PR title: `chore(css): adopt logical properties + Stylelint`.
+
+**Depends on:** Item 56 (initial CI). Land 56 first so Stylelint plugs into an existing workflow rather than fabricating one.
+
+</details>
+
+---
+
 ### ~~56. Set up GitHub Actions CI~~ DONE
 
 Added the first GitHub Actions CI workflow for `pnpm typecheck` and `pnpm test`, plus a README status badge for `semanticpixel/trellis`.

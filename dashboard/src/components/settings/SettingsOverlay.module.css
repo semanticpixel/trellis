@@ -25,7 +25,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
 }
 
 .title {
@@ -51,7 +51,7 @@
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border-primary);
+  border-block-end: 1px solid var(--border-primary);
   padding: 0 var(--space-lg);
 }
 
@@ -59,7 +59,7 @@
   padding: var(--space-sm) var(--space-md);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-block-end: 2px solid transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 13px;
@@ -73,7 +73,7 @@
 .tabActive {
   composes: tab;
   color: var(--accent);
-  border-bottom-color: var(--accent);
+  border-block-end-color: var(--accent);
 }
 
 .body {
@@ -83,7 +83,7 @@
 }
 
 .section {
-  margin-bottom: var(--space-xl);
+  margin-block-end: var(--space-xl);
 }
 
 .sectionTitle {
@@ -92,7 +92,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-tertiary);
-  margin-bottom: var(--space-md);
+  margin-block-end: var(--space-md);
 }
 
 .providerCard {
@@ -102,7 +102,7 @@
   padding: var(--space-md);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  margin-bottom: var(--space-sm);
+  margin-block-end: var(--space-sm);
 }
 
 .providerInfo {
@@ -154,7 +154,7 @@
   padding: var(--space-md);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  margin-bottom: var(--space-md);
+  margin-block-end: var(--space-md);
   background: var(--bg-code);
 }
 
@@ -200,7 +200,7 @@
   display: flex;
   gap: var(--space-sm);
   justify-content: flex-end;
-  margin-top: var(--space-xs);
+  margin-block-start: var(--space-xs);
 }
 
 .btn {
@@ -256,7 +256,7 @@
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  margin-bottom: var(--space-sm);
+  margin-block-end: var(--space-sm);
 }
 
 .workspaceColor {
@@ -314,7 +314,7 @@
   display: flex;
   justify-content: flex-start;
   padding: var(--space-sm) var(--space-lg);
-  border-top: 1px solid var(--border-primary);
+  border-block-start: 1px solid var(--border-primary);
 }
 
 .footerBtn {
@@ -357,7 +357,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-md);
-  margin-bottom: var(--space-md);
+  margin-block-end: var(--space-md);
 }
 
 .mcpHint {
@@ -379,7 +379,7 @@
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: var(--space-md);
-  margin-bottom: var(--space-sm);
+  margin-block-end: var(--space-sm);
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
@@ -497,14 +497,14 @@
   gap: var(--space-sm);
   width: 100%;
   padding: var(--space-sm) var(--space-md);
-  margin-bottom: var(--space-md);
+  margin-block-end: var(--space-md);
   border: 1px dashed var(--accent);
   background: var(--accent-subtle);
   color: var(--accent);
   border-radius: var(--radius-md);
   font-size: 12px;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .mcpImportBanner:hover {

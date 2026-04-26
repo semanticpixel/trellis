@@ -148,21 +148,21 @@
 }
 
 .content p {
-  margin-bottom: var(--space-sm);
+  margin-block-end: var(--space-sm);
 }
 
 .content p:last-child {
-  margin-bottom: 0;
+  margin-block-end: 0;
 }
 
 .content ul,
 .content ol {
   margin: var(--space-sm) 0;
-  padding-left: var(--space-xl);
+  padding-inline-start: var(--space-xl);
 }
 
 .content li {
-  margin-bottom: var(--space-xs);
+  margin-block-end: var(--space-xs);
 }
 
 .inlineCode {
@@ -196,14 +196,14 @@
 .userText {
   margin: 0;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .imageGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 200px));
   gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
+  margin-block-end: var(--space-sm);
 }
 
 .imageCell {

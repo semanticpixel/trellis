@@ -2,7 +2,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xs);
-  padding-bottom: var(--space-xs);
+  padding-block-end: var(--space-xs);
 }
 
 .thumb {
@@ -24,8 +24,8 @@
 
 .remove {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

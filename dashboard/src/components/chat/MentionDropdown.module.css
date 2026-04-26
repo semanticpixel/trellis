@@ -1,13 +1,13 @@
 .dropdown {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
+  inset-block-end: calc(100% + 6px);
+  inset-inline-start: 0;
   width: 100%;
   max-width: 480px;
   background: var(--bg-input);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-popover, 0 8px 24px rgba(0, 0, 0, 0.18));
+  box-shadow: var(--shadow-popover, 0 8px 24px rgb(0 0 0 / 18%));
   z-index: 20;
   overflow: hidden;
 }

@@ -61,5 +61,5 @@
   border-block-start: 1px solid var(--border-primary);
   max-height: 300px;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }

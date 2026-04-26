@@ -42,7 +42,7 @@
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   max-width: 100%;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .actions {

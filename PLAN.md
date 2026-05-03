@@ -745,6 +745,10 @@ dashboard/src/
 
 CSS Modules (`Button.module.css`, etc.) are **outside** this stack. They get auto-scoped class names from Vite's CSS Modules pipeline and don't participate in global cascade — no layer needed.
 
+#### Base palette layer in `theme.css`
+
+Also introduces a base palette layer (`--gray-1..9`, `--blue-1..9`, `--green-1..9`, `--red-1..9`, `--yellow-1..9`, Tailwind-aligned) above the semantic tokens in `theme.css`. Every semantic color references the palette via `var(--<scale>-<stop>)`. Dark-mode tinted "subtle" backgrounds (`--accent-subtle`, `--success-subtle`, `--error-subtle`, `--warning-subtle`, `--bg-message-user`, `--bg-tool`) are derived from the accent stops via `oklch(from var(--…-7) <L> <C> h)` relative color syntax — no raw hex outside the palette block (except `--diff-*`, which intentionally tracks GitHub's diff colors). Convention: `-1` lightest → `-9` darkest, matching open-props/Tailwind direction.
+
 #### Files to touch
 
 - `dashboard/src/styles/app.css` (new) — the layer declaration + imports above

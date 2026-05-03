@@ -43,7 +43,8 @@
   --black: #000;
 
   /* Base Palette — raw color stops, do not consume directly in components.
-     Tailwind-aligned 9-step scale: -1 lightest → -9 darkest. */
+     -1 lightest → -N darkest. Gray runs to -11 to cover the dense range of
+     dark-mode surfaces (sidebar, primary, hover, borders) without collisions. */
   --gray-1: #fafafa;
   --gray-2: #f0f0f0;
   --gray-3: #e5e5e5;
@@ -51,8 +52,10 @@
   --gray-5: #a3a3a3;
   --gray-6: #666;
   --gray-7: #3e3e3e;
-  --gray-8: #252525;
-  --gray-9: #141414;
+  --gray-8: #2e2e2e;
+  --gray-9: #252525;
+  --gray-10: #1a1a1a;
+  --gray-11: #141414;
   --blue-1: #eff6ff;
   --blue-2: #dbeafe;
   --blue-3: #bfdbfe;
@@ -92,19 +95,19 @@
 
   /* Semantic Colors — every token references the palette above. Tinted dark
      "subtle" backgrounds are derived from accent stops via oklch(from …). */
-  --bg-primary: light-dark(var(--white), var(--gray-9));
-  --bg-sidebar: light-dark(var(--gray-1), var(--gray-9));
-  --bg-hover: light-dark(var(--gray-2), var(--gray-8));
+  --bg-primary: light-dark(var(--white), var(--gray-11));
+  --bg-sidebar: light-dark(var(--gray-1), var(--gray-10));
+  --bg-hover: light-dark(var(--gray-2), var(--gray-9));
   --bg-active: light-dark(var(--gray-3), var(--gray-7));
-  --bg-input: light-dark(var(--white), var(--gray-9));
-  --bg-code: light-dark(var(--gray-1), var(--gray-9));
+  --bg-input: light-dark(var(--white), var(--gray-10));
+  --bg-code: light-dark(var(--gray-1), var(--gray-10));
   --bg-message-user: light-dark(var(--blue-1), oklch(from var(--blue-7) 17% 0.03 h));
-  --bg-message-assistant: light-dark(var(--white), var(--gray-9));
+  --bg-message-assistant: light-dark(var(--white), var(--gray-10));
   --bg-tool: light-dark(var(--green-1), oklch(from var(--green-7) 14% 0.02 h));
-  --text-primary: light-dark(var(--gray-9), var(--gray-3));
+  --text-primary: light-dark(var(--gray-10), var(--gray-3));
   --text-secondary: light-dark(var(--gray-6), var(--gray-5));
   --text-tertiary: light-dark(var(--gray-5), var(--gray-6));
-  --text-inverse: light-dark(var(--white), var(--gray-9));
+  --text-inverse: light-dark(var(--white), var(--gray-10));
   --border-primary: light-dark(var(--gray-3), var(--gray-8));
   --border-secondary: light-dark(var(--gray-4), var(--gray-7));
   --accent: light-dark(var(--blue-7), var(--blue-6));

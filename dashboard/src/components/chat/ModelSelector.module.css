@@ -34,7 +34,7 @@
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--elevation-popover);
   z-index: 50;
   overflow: hidden;
   max-height: 300px;

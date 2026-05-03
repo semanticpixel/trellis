@@ -17,7 +17,7 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-modal);
+  box-shadow: var(--elevation-modal);
 }
 
 .header {

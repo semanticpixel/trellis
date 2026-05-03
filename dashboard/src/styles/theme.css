@@ -1,0 +1,168 @@
+/* ── Design Tokens ──────────────────────────────────────────── */
+
+/* All colors in components MUST reference these variables.      */
+
+/* No hardcoded hex values in component CSS.                     */
+:root {
+  /* Typography */
+  --font-sans: -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-mono: 'SF Mono', sfmono-regular, 'Cascadia Code', menlo, monospace;
+
+  /* Rem value */
+  --rem: 16;
+
+  /* Variables for space toggles */
+  --on: initial;
+  --off: /* */;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition-normal: 200ms ease;
+
+  /* Layout */
+  --content-width: 960px;
+  --content-padding: var(--space-lg);
+
+  /* Base Colors */
+  --white: #fff;
+  --black: #000;
+
+  /* Base Palette — raw color stops, do not consume directly in components.
+     -1 lightest → -N darkest. Gray runs to -11 to cover the dense range of
+     dark-mode surfaces (sidebar, primary, hover, borders) without collisions. */
+  --gray-1: #fafafa;
+  --gray-2: #f0f0f0;
+  --gray-3: #e5e5e5;
+  --gray-4: #d0d0d0;
+  --gray-5: #a3a3a3;
+  --gray-6: #666;
+  --gray-7: #3e3e3e;
+  --gray-8: #2e2e2e;
+  --gray-9: #252525;
+  --gray-10: #1a1a1a;
+  --gray-11: #141414;
+  --blue-1: #eff6ff;
+  --blue-2: #dbeafe;
+  --blue-3: #bfdbfe;
+  --blue-4: #93c5fd;
+  --blue-5: #60a5fa;
+  --blue-6: #3b82f6;
+  --blue-7: #2563eb;
+  --blue-8: #1d4ed8;
+  --blue-9: #1e3a8a;
+  --green-1: #f0fdf4;
+  --green-2: #dcfce7;
+  --green-3: #bbf7d0;
+  --green-4: #86efac;
+  --green-5: #4ade80;
+  --green-6: #22c55e;
+  --green-7: #16a34a;
+  --green-8: #15803d;
+  --green-9: #14532d;
+  --red-1: #fef2f2;
+  --red-2: #fee2e2;
+  --red-3: #fecaca;
+  --red-4: #fca5a5;
+  --red-5: #f87171;
+  --red-6: #ef4444;
+  --red-7: #dc2626;
+  --red-8: #b91c1c;
+  --red-9: #7f1d1d;
+  --yellow-1: #fefce8;
+  --yellow-2: #fef9c3;
+  --yellow-3: #fef08a;
+  --yellow-4: #fde047;
+  --yellow-5: #facc15;
+  --yellow-6: #eab308;
+  --yellow-7: #ca8a04;
+  --yellow-8: #a16207;
+  --yellow-9: #713f12;
+
+  /* Semantic Colors — every token references the palette above. Tinted dark
+     "subtle" backgrounds are derived from accent stops via oklch(from …). */
+  --bg-primary: light-dark(var(--white), var(--gray-11));
+  --bg-sidebar: light-dark(var(--gray-1), var(--gray-10));
+  --bg-hover: light-dark(var(--gray-2), var(--gray-9));
+  --bg-active: light-dark(var(--gray-3), var(--gray-7));
+  --bg-input: light-dark(var(--white), var(--gray-10));
+  --bg-code: light-dark(var(--gray-1), var(--gray-10));
+  --bg-message-user: light-dark(var(--blue-1), oklch(from var(--blue-7) 17% 0.03 h));
+  --bg-message-assistant: light-dark(var(--white), var(--gray-10));
+  --bg-tool: light-dark(var(--green-1), oklch(from var(--green-7) 14% 0.02 h));
+  --text-primary: light-dark(var(--gray-10), var(--gray-3));
+  --text-secondary: light-dark(var(--gray-6), var(--gray-5));
+  --text-tertiary: light-dark(var(--gray-5), var(--gray-6));
+  --text-inverse: light-dark(var(--white), var(--gray-10));
+  --border-primary: light-dark(var(--gray-3), var(--gray-8));
+  --border-secondary: light-dark(var(--gray-4), var(--gray-7));
+  --accent: light-dark(var(--blue-7), var(--blue-6));
+  --accent-hover: light-dark(var(--blue-8), var(--blue-5));
+  --accent-subtle: light-dark(var(--blue-1), oklch(from var(--blue-7) 20% 0.04 h));
+  --success: light-dark(var(--green-7), var(--green-6));
+  --success-subtle: light-dark(var(--green-1), oklch(from var(--green-7) 18% 0.04 h));
+  --error: light-dark(var(--red-7), var(--red-6));
+  --error-subtle: light-dark(var(--red-1), oklch(from var(--red-7) 18% 0.04 h));
+  --warning: light-dark(var(--yellow-7), var(--yellow-6));
+  --warning-subtle: light-dark(var(--yellow-1), oklch(from var(--yellow-7) 18% 0.03 h));
+
+  /* Status badges */
+  --status-running: light-dark(var(--blue-7), var(--blue-6));
+  --status-approval: light-dark(var(--green-7), var(--green-6));
+  --status-done: light-dark(var(--gray-5), var(--gray-6));
+  --status-error: light-dark(var(--red-7), var(--red-6));
+
+  /* Diff — GitHub diff colors, intentionally outside the standard palette. */
+  --diff-add-bg: light-dark(rgb(46 160 67 / 10%), rgb(46 160 67 / 18%));
+  --diff-add-fg: light-dark(#16a34a, #3fb950);
+  --diff-del-bg: light-dark(rgb(248 81 73 / 10%), rgb(248 81 73 / 18%));
+  --diff-del-fg: light-dark(#dc2626, #f85149);
+
+  /* Shadows */
+  --shadow: light-dark(var(--black), var(--black));
+
+  /* Elevations */
+  --elevation-subtle: 0 1px 2px rgb(from var(--shadow) r g b / 5%);
+  --elevation-overlay: 0 0 0 9999px rgb(from var(--shadow) r g b / 40%);
+  --elevation-popover: 0 8px 24px rgb(from var(--shadow) r g b / 15%);
+  --elevation-modal: 0 8px 32px rgb(from var(--shadow) r g b / 20%);
+  --bg-overlay: rgb(from var(--shadow) r g b / 40%);
+}
+
+:root,
+[data-color-scheme="light"] {
+  color-scheme: light;
+}
+
+[data-color-scheme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme]) {
+    color-scheme: dark;
+  }
+}
+
+:root,
+[dir="ltr"] {
+  --flow-direction: 1;
+}
+
+[dir="rtl"] {
+  --flow-direction: -1;
+}

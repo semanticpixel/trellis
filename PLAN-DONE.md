@@ -46,6 +46,102 @@ ou left it. Put laptop to sleep for 30 min, wake, same result.
 
 ---
 
+### ~~57. Reorganize global CSS into cascade layers~~ DONE
+
+Moved global CSS into `dashboard/src/styles/` behind a five-layer `@layer reset, theme, base, components, atoms;` declaration in `app.css`, the single global stylesheet entry imported from `main.tsx`. Deleted `dashboard/src/ui/tokens.css` and absorbed its contents into `styles/theme.css`. Renamed `--shadow-*` tokens to `--elevation-*` to match the layer's intent; updated all consumers. Stylelint config gained `'import-notation': 'string'` and `'declaration-block-no-redundant-longhand-properties': null` to play nicely with the new `@import … layer(…)` syntax and existing logical-property usage. CLAUDE.md updated to reference `styles/theme.css` and the layer architecture.
+
+Beyond the original spec, also introduced a base color palette in `theme.css` (Tailwind-aligned, `-1` lightest → `-N` darkest) so semantic tokens reference palette stops via `var(--<scale>-<stop>)` instead of inlining hex inside `light-dark()`. Final palette: `--gray-1..11`, `--blue-1..9`, `--green-1..9`, `--red-1..9`, `--yellow-1..9`. Gray runs to 11 stops because the dark-mode dense range (sidebar, primary, hover, two border tones) doesn't fit in a 9-stop scale without surfaces collapsing onto each other. Dark-mode tinted "subtle" backgrounds (`--accent-subtle`, `--success-subtle`, `--error-subtle`, `--warning-subtle`, `--bg-message-user`, `--bg-tool`) are derived from the accent stops via `oklch(from var(--…-7) <L%> <C> h)` relative color syntax — no raw hex outside the palette block except the `--diff-*` tokens, which intentionally track GitHub's diff palette.
+
+Dark-mode polish landed in three commits: cascade layers + elevation rename (snapshot/rollback point), palette introduction, and gray-scale extension to 11 stops + sidebar/primary swap so primary is a hair darker than sidebar (preserves the original subtle depth hierarchy). Known follow-up (deferred): `--bg-input` / `--bg-code` / `--bg-message-assistant` dark all resolve to `--gray-10` (`#1a1a1a`) now, losing the original `#1e1e1e` tint that made them a hair lighter than primary — polish as encountered.
+
+<details>
+<summary>Original spec</summary>
+
+**What:** Move global stylesheets into `dashboard/src/styles/` and structure them as five explicit CSS cascade layers (`reset`, `theme`, `base`, `components`, `atoms`) imported through a single `app.css` entry point. Replaces the lone `dashboard/src/ui/tokens.css` import in `main.tsx` with a layered architecture that gives us deterministic cascade order across the entire app.
+
+**Why:** Right now there's exactly one global stylesheet (`tokens.css`) and one entry point. As we add a CSS reset, base typography, global utility/atomic classes, and primitives (item 58), specificity wars are inevitable unless we name the layers up front. Cascade layers make ordering explicit at the top of `app.css` — no more "why does this `:hover` rule lose to that selector" debugging. This also separates "import once globally" CSS (everything in `styles/`) from "import per component" CSS (CSS Modules under `ui/` and `components/`), so the import direction is obvious by location.
+
+#### Final layout
+
+```
+dashboard/src/
+  styles/
+    app.css         ← entry; declares @layer order and @imports the rest
+    reset.css
+    theme.css       ← absorbs everything currently in ui/tokens.css
+    base.css
+    components.css
+    atoms.css
+  main.tsx          ← imports './styles/app.css' (single global CSS entry)
+```
+
+`dashboard/src/ui/tokens.css` is **deleted** in this item — its contents move into `theme.css`. CLAUDE.md's reference to `tokens.css` updates to `styles/theme.css`.
+
+#### `app.css` (verbatim)
+
+```css
+@layer reset, theme, base, components, atoms;
+
+@import './reset.css' layer(reset);
+@import './theme.css' layer(theme);
+@import './base.css' layer(base);
+@import './components.css' layer(components);
+@import './atoms.css' layer(atoms);
+```
+
+**Layer order (lowest → highest cascade priority):**
+1. **reset** — modern CSS reset (start with `modern-normalize` or a minimal hand-written reset; pick one and document the choice in a top-of-file comment in `reset.css`).
+2. **theme** — design tokens (CSS custom properties only — `--color-*`, `--space-*`, `--font-*`, `--elevation-*`). No selectors that emit declarations on actual elements.
+3. **base** — element-level defaults: `body`, `html`, headings, links, form elements. Keep the surface small; this is for *defaults*, not opinionated styling.
+4. **components** — global, semantic class-based styles for cross-cutting widgets that aren't CSS Modules (e.g. legacy `.card`, third-party library overrides, markdown rendering classes from `react-markdown` if any need theming). Empty initially — add as we encounter cases.
+5. **atoms** — utility/atomic classes (`.flex`, `.gap-md`, `.text-muted`). Highest priority so a `<div className="text-muted">` actually overrides component-level color when applied. Empty initially; populate as patterns emerge.
+
+CSS Modules (`Button.module.css`, etc.) are **outside** this stack. They get auto-scoped class names from Vite's CSS Modules pipeline and don't participate in global cascade — no layer needed.
+
+#### Base palette layer in `theme.css`
+
+Also introduces a base palette layer (`--gray-1..9`, `--blue-1..9`, `--green-1..9`, `--red-1..9`, `--yellow-1..9`, Tailwind-aligned) above the semantic tokens in `theme.css`. Every semantic color references the palette via `var(--<scale>-<stop>)`. Dark-mode tinted "subtle" backgrounds (`--accent-subtle`, `--success-subtle`, `--error-subtle`, `--warning-subtle`, `--bg-message-user`, `--bg-tool`) are derived from the accent stops via `oklch(from var(--…-7) <L> <C> h)` relative color syntax — no raw hex outside the palette block (except `--diff-*`, which intentionally tracks GitHub's diff colors). Convention: `-1` lightest → `-9` darkest, matching open-props/Tailwind direction.
+
+#### Files to touch
+
+- `dashboard/src/styles/app.css` (new) — the layer declaration + imports above
+- `dashboard/src/styles/reset.css` (new) — pick a reset; document the choice in a comment at the top
+- `dashboard/src/styles/theme.css` (new) — content moved from `dashboard/src/ui/tokens.css` (1:1 move; no content changes)
+- `dashboard/src/styles/base.css` (new) — start empty with a comment listing what belongs here ("body, html, headings, links, form defaults"); don't preemptively add styles
+- `dashboard/src/styles/components.css` (new) — empty with a header comment explaining the layer's purpose
+- `dashboard/src/styles/atoms.css` (new) — empty with a header comment explaining the layer's purpose
+- `dashboard/src/ui/tokens.css` — **delete** after moving content
+- `dashboard/src/main.tsx` — change `import './ui/tokens.css'` to `import './styles/app.css'`
+- `CLAUDE.md` — update the CSS section: replace the `tokens.css` reference with `styles/theme.css`, and add a one-line bullet about the layer architecture (e.g. *"Global CSS lives in `dashboard/src/styles/`, imported once via `app.css` which declares the layer order: `reset, theme, base, components, atoms`."*)
+- `stylelint.config.cjs` — verify the config still ignores `dashboard/dist/**` and friends; no rule changes expected, but ensure `@layer` and `@import layer(...)` syntax doesn't trigger a false positive (newer `stylelint-config-standard` supports both natively; if it doesn't, add the at-rules to `at-rule-no-unknown` ignore list with a comment)
+
+#### Acceptance
+
+1. `pnpm typecheck && pnpm test && pnpm run lint:css` all pass.
+2. The dashboard renders pixel-identically to pre-migration in both LTR and current theme — no visual regressions. Layered CSS with no actual rules added in `base/components/atoms` should be a no-op.
+3. DevTools → Inspector → Computed pane shows the `@layer` ordering for any style that ends up in a layer (verify on one element from `theme.css` — e.g. body background — that the layer label appears).
+4. `dashboard/src/ui/tokens.css` no longer exists; grep finds zero references to it across the repo.
+5. CLAUDE.md's CSS section names `styles/theme.css` (not `tokens.css`) and lists the layer order.
+
+#### Out of scope
+
+- Adding any new actual styles to `base.css`, `components.css`, or `atoms.css`. This item is *purely* the file structure and import pipeline. Populate the layers in follow-ups when there's a concrete style to add.
+- Migrating CSS Modules to also opt into a layer via `@layer components.foo { ... }` blocks — unnecessary given Vite's scoping, and adds noise.
+- Swapping in a different reset library or opinionated typography system. Pick a minimal reset, document it, move on.
+- Sass / PostCSS plugins beyond what's already configured.
+- Any work that belongs to item 58 (primitives layer).
+
+#### Risk callouts
+
+- **Vite + CSS @import:** Vite handles `@import` in CSS by inlining at build time. Confirm in dev (`pnpm run dev`) AND in a production build (`pnpm run build:dashboard`) that `@layer` survives intact — modern Vite preserves it, but verify by inspecting the built CSS for `@layer reset, theme, base, components, atoms;`. If a future Vite version flattens layers, we'll need a postcss plugin (don't add preemptively).
+- **Stylelint + @layer:** `stylelint-config-standard` 36+ supports `@layer` natively. If lint fails on it, add `'at-rule-no-unknown': [true, { ignoreAtRules: ['layer'] }]` to `stylelint.config.cjs` with a one-line comment, but try without first.
+- **Browser support:** `@layer` ships in all modern browsers since 2022 (Safari 15.4+, Firefox 97+, Chrome 99+). Electron 35 ships Chromium 134+ — fully supported. Non-issue for our target.
+- **Unsourced reset choice:** Don't paste a reset from memory. Pin a specific source (e.g. `modern-normalize` v3.0.1 copied verbatim, or Josh Comeau's reset with attribution) so the file's provenance is obvious to reviewers.
+
+</details>
+
+---
+
 ### ~~55. Adopt CSS logical properties + add Stylelint~~ DONE
 
 Adopted Stylelint for dashboard CSS, migrated physical CSS properties to logical equivalents, wired CSS linting into CI, and documented the rule in CLAUDE.md.
@@ -527,9 +623,9 @@ Added a Cmd+K branch to the global keyboard handler in `App.tsx`. A ref threads 
 
 ---
 
-### ~~18. Fix duplicate `--shadow-subtle` in tokens.css~~ DONE
+### ~~18. Fix duplicate `--elevation-subtle` in tokens.css~~ DONE
 
-Removed the duplicate `--shadow-subtle` declaration from the `:root` (light) block in `dashboard/src/ui/tokens.css`. Other theme blocks already had a single declaration.
+Removed the duplicate `--elevation-subtle` declaration from the `:root` (light) block in `dashboard/src/ui/tokens.css`. Other theme blocks already had a single declaration.
 
 ---
 

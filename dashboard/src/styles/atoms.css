@@ -1,0 +1,36 @@
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: pre;
+}
+
+.display-none {
+  display: none;
+}
+
+.display-block {
+  display: block;
+}
+
+.display-row {
+  display: flex;
+}
+
+.display-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.display-box {
+  display: grid;
+  isolation: isolate;
+
+  > * {
+    grid-area: 1 / 1;
+    align-self: start;
+    justify-self: start;
+  }
+}

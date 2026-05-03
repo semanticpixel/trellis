@@ -738,7 +738,7 @@ dashboard/src/
 
 **Layer order (lowest → highest cascade priority):**
 1. **reset** — modern CSS reset (start with `modern-normalize` or a minimal hand-written reset; pick one and document the choice in a top-of-file comment in `reset.css`).
-2. **theme** — design tokens (CSS custom properties only — `--color-*`, `--space-*`, `--font-*`, `--shadow-*`). No selectors that emit declarations on actual elements.
+2. **theme** — design tokens (CSS custom properties only — `--color-*`, `--space-*`, `--font-*`, `--elevation-*`). No selectors that emit declarations on actual elements.
 3. **base** — element-level defaults: `body`, `html`, headings, links, form elements. Keep the surface small; this is for *defaults*, not opinionated styling.
 4. **components** — global, semantic class-based styles for cross-cutting widgets that aren't CSS Modules (e.g. legacy `.card`, third-party library overrides, markdown rendering classes from `react-markdown` if any need theming). Empty initially — add as we encounter cases.
 5. **atoms** — utility/atomic classes (`.flex`, `.gap-md`, `.text-muted`). Highest priority so a `<div className="text-muted">` actually overrides component-level color when applied. Empty initially; populate as patterns emerge.

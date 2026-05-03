@@ -1,0 +1,7 @@
+@layer reset, theme, base, components, atoms;
+
+@import "reset.css" layer(reset);
+@import "theme.css" layer(theme);
+@import "base.css" layer(base);
+@import "components.css" layer(components);
+@import "atoms.css" layer(atoms);

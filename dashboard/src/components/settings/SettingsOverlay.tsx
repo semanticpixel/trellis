@@ -1,33 +1,33 @@
-import { useState, useCallback, useEffect } from 'react';
+import type { Provider, ProviderType } from '@shared/types';
+import { AlertCircle, Check, Download, Keyboard, LogIn, LogOut, Pencil, Plus, RefreshCw, Server, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import {
-  useProviders,
-  useCreateProvider,
-  useUpdateProvider,
-  useDeleteProvider,
-  useWorkspaces,
-  useUpdateWorkspace,
-  useDeleteWorkspace,
-  useSetting,
-  useSetSetting,
-  useMcpServers,
-  useCreateMcpServer,
-  useUpdateMcpServer,
-  useDeleteMcpServer,
-  useReloadMcpServer,
-  useReloadAllMcp,
-  useAuthorizeMcpServer,
-  useSignOutMcpServer,
-  useClaudeCodeCandidates,
-  useImportMcpServers,
-  type McpServerInfo,
   isMcpTransport,
+  useAuthorizeMcpServer,
+  useClaudeCodeCandidates,
+  useCreateMcpServer,
+  useCreateProvider,
+  useDeleteMcpServer,
+  useDeleteProvider,
+  useDeleteWorkspace,
+  useImportMcpServers,
+  useMcpServers,
+  useProviders,
+  useReloadAllMcp,
+  useReloadMcpServer,
+  useSetSetting,
+  useSetting,
+  useSignOutMcpServer,
+  useUpdateMcpServer,
+  useUpdateProvider,
+  useUpdateWorkspace,
+  useWorkspaces,
   type McpServerConfigInput,
+  type McpServerInfo,
   type McpTransport,
 } from '../../hooks/useWorkspaces';
-import { usePersistedSetting } from '../../hooks/usePersistedSetting';
 import { ColorPicker } from '../sidebar/ColorPicker';
-import { X, Trash2, Pencil, Plus, Check, Keyboard, RefreshCw, Download, Server, AlertCircle, LogIn, LogOut } from 'lucide-react';
-import type { Provider, ProviderType } from '@shared/types';
 import styles from './SettingsOverlay.module.css';
 
 interface SettingsOverlayProps {
@@ -425,19 +425,19 @@ function WorkspacesTab() {
 // ── Appearance Tab ─────────────────────────────────────────────
 
 function AppearanceTab() {
-  const { data: themeSetting } = useSetting('theme');
+  const { data: colorSchemeSetting } = useSetting('theme');
   const setSetting = useSetSetting();
-  const currentTheme = themeSetting?.value ?? 'system';
+  const currentColorScheme = colorSchemeSetting?.value ?? 'system';
 
   const handleThemeChange = useCallback((theme: string) => {
     setSetting.mutate({ key: 'theme', value: theme });
-    applyTheme(theme);
+    applyColorScheme(theme);
   }, [setSetting]);
 
   // Apply theme on mount
   useEffect(() => {
-    applyTheme(currentTheme);
-  }, [currentTheme]);
+    applyColorScheme(currentColorScheme);
+  }, [currentColorScheme]);
 
   return (
     <div>
@@ -447,7 +447,7 @@ function AppearanceTab() {
           {(['light', 'dark', 'system'] as const).map((t) => (
             <button
               key={t}
-              className={currentTheme === t ? styles.themeOptionActive : styles.themeOption}
+              className={currentColorScheme === t ? styles.themeOptionActive : styles.themeOption}
               onClick={() => handleThemeChange(t)}
             >
               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -459,11 +459,11 @@ function AppearanceTab() {
   );
 }
 
-function applyTheme(theme: string): void {
+function applyColorScheme(colorScheme: string): void {
   const root = document.documentElement;
-  root.removeAttribute('data-theme');
-  if (theme === 'light' || theme === 'dark') {
-    root.setAttribute('data-theme', theme);
+  root.removeAttribute('data-color-scheme');
+  if (colorScheme === 'light' || colorScheme === 'dark') {
+    root.setAttribute('data-color-scheme', colorScheme);
   }
   // 'system' means use prefers-color-scheme (no override)
 }

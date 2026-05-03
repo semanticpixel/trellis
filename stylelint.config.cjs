@@ -7,6 +7,7 @@ module.exports = {
       // worth the indirection, and `block-size`/`inline-size` would obscure intent.
       except: ['width', 'height', 'min-width', 'min-height', 'max-width', 'max-height'],
     }],
+    'import-notation': "string",
     'property-no-unknown': [true, {
       ignoreProperties: ['composes'],
     }],
@@ -17,6 +18,7 @@ module.exports = {
       ignoreKeywords: ['currentColor'],
       ignoreProperties: ['composes'],
     }],
+    'declaration-block-no-redundant-longhand-properties': null,
   },
   ignoreFiles: ['dashboard/dist/**/*', 'dist/**/*', 'node_modules/**/*'],
 };

@@ -1,0 +1,32 @@
+/*
+  This file is to group all reusable components together.
+  The order is important, we start from primitives like text, link and move up to 
+  more complex complex components like button, input, that use the primitives
+
+  We ned to do this because we want to be able to override the styles of the primitives
+  from other components.
+
+  For example, if we want to override the styles of the button component, we can do it
+  cleanly by adding a layer called button which then means no high specificity selectors to 
+  override the button component.
+*/
+
+@layer text {
+  /* Empty so layer can be created and ordered correctly */
+}
+
+@layer link {
+  /* Empty so layer can be created and ordered correctly */
+}
+
+@layer button {
+  /* Empty so layer can be created and ordered correctly */
+}
+
+@layer wrapper {
+  /* Empty so layer can be created and ordered correctly */
+}
+
+@layer form {
+  /* Empty so layer can be created and ordered correctly */
+}

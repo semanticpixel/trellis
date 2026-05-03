@@ -527,9 +527,9 @@ Added a Cmd+K branch to the global keyboard handler in `App.tsx`. A ref threads 
 
 ---
 
-### ~~18. Fix duplicate `--shadow-subtle` in tokens.css~~ DONE
+### ~~18. Fix duplicate `--elevation-subtle` in tokens.css~~ DONE
 
-Removed the duplicate `--shadow-subtle` declaration from the `:root` (light) block in `dashboard/src/ui/tokens.css`. Other theme blocks already had a single declaration.
+Removed the duplicate `--elevation-subtle` declaration from the `:root` (light) block in `dashboard/src/ui/tokens.css`. Other theme blocks already had a single declaration.
 
 ---
 

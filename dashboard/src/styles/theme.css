@@ -1,0 +1,118 @@
+/* ── Design Tokens ──────────────────────────────────────────── */
+
+/* All colors in components MUST reference these variables.      */
+
+/* No hardcoded hex values in component CSS.                     */
+:root {
+  /* Typography */
+  --font-sans: -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-mono: 'SF Mono', sfmono-regular, 'Cascadia Code', menlo, monospace;
+
+  /* Rem value */
+  --rem: 16;
+
+  /* Variables for space toggles */
+  --on: initial;
+  --off: /* */;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition-normal: 200ms ease;
+
+  /* Layout */
+  --content-width: 960px;
+  --content-padding: var(--space-lg);
+
+  /* Base Colors */
+  --white: #fff;
+  --black: #000;
+
+  /* Add more here on a scale like blue-5, blue-6 */
+
+  /* Semantic Colors */
+  --bg-primary: light-dark(var(--white), #1a1a1a);
+  --bg-sidebar: light-dark(#f8f8f8, #141414);
+  --bg-hover: light-dark(#f0f0f0, #252525);
+  --bg-active: light-dark(#e8e8e8, #303030);
+  --bg-input: light-dark(#fff, #1e1e1e);
+  --bg-code: light-dark(#f5f5f5, #1e1e1e);
+  --bg-message-user: light-dark(#f0f4ff, #1a2332);
+  --bg-message-assistant: light-dark(#fff, #1a1a1a);
+  --bg-tool: light-dark(#f8faf8, #1a2018);
+  --text-primary: light-dark(#1a1a1a, #e5e5e5);
+  --text-secondary: light-dark(#666, #a0a0a0);
+  --text-tertiary: light-dark(#999, #666);
+  --text-inverse: light-dark(#fff, #1a1a1a);
+  --border-primary: light-dark(#e5e5e5, #2e2e2e);
+  --border-secondary: light-dark(#d0d0d0, #3e3e3e);
+  --accent: light-dark(#2563eb, #3b82f6);
+  --accent-hover: light-dark(#1d4ed8, #60a5fa);
+  --accent-subtle: light-dark(#eff6ff, #1e293b);
+  --success: light-dark(#16a34a, #22c55e);
+  --success-subtle: light-dark(#f0fdf4, #14271a);
+  --error: light-dark(#dc2626, #ef4444);
+  --error-subtle: light-dark(#fef2f2, #2d1414);
+  --warning: light-dark(#ca8a04, #eab308);
+  --warning-subtle: light-dark(#fefce8, #2d2714);
+
+  /* Status badges */
+  --status-running: light-dark(#2563eb, #3b82f6);
+  --status-approval: light-dark(#16a34a, #22c55e);
+  --status-done: light-dark(#999, #666);
+  --status-error: light-dark(#dc2626, #ef4444);
+
+  /* Diff */
+  --diff-add-bg: light-dark(rgb(46 160 67 / 10%), rgb(46 160 67 / 18%));
+  --diff-add-fg: light-dark(#16a34a, #3fb950);
+  --diff-del-bg: light-dark(rgb(248 81 73 / 10%), rgb(248 81 73 / 18%));
+  --diff-del-fg: light-dark(#dc2626, #f85149);
+
+  /* Shadows */
+  --shadow: light-dark(var(--black), var(--black));
+
+  /* Elevations */
+  --elevation-subtle: 0 1px 2px rgb(from var(--shadow) r g b / 5%);
+  --elevation-overlay: 0 0 0 9999px rgb(from var(--shadow) r g b / 40%);
+  --elevation-popover: 0 8px 24px rgb(from var(--shadow) r g b / 15%);
+  --elevation-modal: 0 8px 32px rgb(from var(--shadow) r g b / 20%);
+  --bg-overlay: rgb(from var(--shadow) r g b / 40%);
+}
+
+:root,
+[data-color-scheme="light"] {
+  color-scheme: light;
+}
+
+[data-color-scheme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme]) {
+    color-scheme: dark;
+  }
+}
+
+:root,
+[dir="ltr"] {
+  --flow-direction: 1;
+}
+
+[dir="rtl"] {
+  --flow-direction: -1;
+}

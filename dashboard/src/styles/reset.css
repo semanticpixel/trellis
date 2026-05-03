@@ -1,0 +1,69 @@
+/* Use a more-intuitive box-sizing model */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Remove default margin and padding */
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* Prevent font size inflation */
+  text-size-adjust: 100%;
+
+  /* Prevent scroll bounce when scrolling past the top and bottom boundaries */
+  overscroll-behavior-y: none;
+
+  /* Enable keyword animations */
+  @media (prefers-reduced-motion: no-preference) {
+    /* Smooth scroll behavior */
+    scroll-behavior: smooth;
+
+    /* Allow keyword animations */
+    interpolate-size: allow-keywords;
+  }
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  &:has(dialog:open) {
+    overflow: hidden;
+  }
+
+  &:has(dialog[open]) {
+    overflow: hidden;
+  }
+}
+
+/* Improve media defaults */
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* Inherit fonts for form controls */
+input, button, textarea, select {
+  font: inherit;
+}
+
+/* Avoid text overflows */
+p, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
+
+/* Improve line wrapping */
+p {
+  text-wrap: pretty;
+  hyphens: auto;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
+}

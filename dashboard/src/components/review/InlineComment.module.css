@@ -39,7 +39,7 @@
   background: var(--bg-primary);
   color: var(--accent);
   font-weight: 500;
-  box-shadow: var(--shadow-subtle);
+  box-shadow: var(--elevation-subtle);
 }
 
 .input {

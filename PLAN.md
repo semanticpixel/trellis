@@ -28,7 +28,7 @@ Done items live in [`PLAN-DONE.md`](./PLAN-DONE.md). When an item ships, mark it
 - **P0 — Daily blockers.** Bugs you hit every session, or missing features that cause data loss. Items 1 (state persistence — DONE), 2 (abort button — DONE), 4 (startup recovery — DONE), 5 (unread indicator — DONE), 20 (tool call bars — DONE), 21 (Monaco error — OBSOLETE: Monaco removed by item 27), 23 (Cmd+` zoom — DONE), 24 (stale annotations — DONE), 30 (abort leak — DONE), 32 (draft persistence — DONE), 33 (error boundaries — DONE).
 - **P1 — High-value features.** New capabilities that unlock workflows. Items 3 (workspace context file), 6 (MCP — stdio DONE, HTTP/SSE in item 50, OAuth in item 51), 7 (plan mode), 10 (@-mentions — DONE), 26 (AskUserQuestion), 27 (sleek diff/terminal — DONE), 28 (text-range plan annotations), ~~34 (image paste — DONE)~~, 35 (commit message gen), 50 (HTTP/SSE MCP transport — DONE), 51 (OAuth for HTTP MCP — DONE).
 - **P2 — Nice polish.** Quality-of-life. Items 8 (permissions), 9 (Claude settings import), 11 (edit/regenerate — DONE), 12 (LLM titles — DONE), 13 (cost display), 14 (Cmd+K — DONE), 15 (arrow nav), 16 (auto-focus composer — DONE), 22 (app branding — DONE), 25 (terminal tab — SKIPPED, superseded by 27), 31 (thread export), 36 (shortcut reference — DONE), 38 (group tool calls).
-- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard), 53 (centered chat content width — DONE), 54 (full-bleed chat shell + icon actions — DONE), ~~55 (CSS logical properties + Stylelint)~~, ~~56 (initial GitHub Actions CI)~~, 57 (CSS cascade layers reorg), 58 (design system primitives).
+- **P3 — Hygiene / future.** Items 17 (extend Cmd+1-9 — DONE), 18 (duplicate shadow token — DONE), 19 (hardcoded color — DONE), 29 (rotating welcome — DONE), 37 (tests), 39 (packaged distribution), 40 (@electron/rebuild migration — DONE), 41 (unread entry cleanup — DONE), 42 (rebuild target mismatch — DONE), 43 (backend in-process with Electron), 44 (diff scrollbars — DONE), 45 (theme-aware Shiki), 46 (binary + CRLF polish — DONE), 47 (virtualize file list — candidate for SPECULATIVE if unused), 48 (Cmd+K focus guard), 53 (centered chat content width — DONE), 54 (full-bleed chat shell + icon actions — DONE), ~~55 (CSS logical properties + Stylelint)~~, ~~56 (initial GitHub Actions CI)~~, ~~57 (CSS cascade layers reorg)~~, 58 (design system primitives).
 
 ### Dependency graph
 
@@ -702,89 +702,6 @@ Applies to **user** messages only. Assistant messages are streamed markdown and 
 - **Measurement on mount**: content height depends on fonts loading, `@`-mention pill widths, etc. Using `ResizeObserver` after initial paint avoids flashes where a short-looking message briefly shows a toggle.
 - **Edit flow interaction**: when the inline editor is open, bypass the collapse entirely so the user sees the full text while editing. The collapsible wrapper should only apply in the non-edit render path.
 
-### 57. Reorganize global CSS into cascade layers
-
-**What:** Move global stylesheets into `dashboard/src/styles/` and structure them as five explicit CSS cascade layers (`reset`, `theme`, `base`, `components`, `atoms`) imported through a single `app.css` entry point. Replaces the lone `dashboard/src/ui/tokens.css` import in `main.tsx` with a layered architecture that gives us deterministic cascade order across the entire app.
-
-**Why:** Right now there's exactly one global stylesheet (`tokens.css`) and one entry point. As we add a CSS reset, base typography, global utility/atomic classes, and primitives (item 58), specificity wars are inevitable unless we name the layers up front. Cascade layers make ordering explicit at the top of `app.css` — no more "why does this `:hover` rule lose to that selector" debugging. This also separates "import once globally" CSS (everything in `styles/`) from "import per component" CSS (CSS Modules under `ui/` and `components/`), so the import direction is obvious by location.
-
-#### Final layout
-
-```
-dashboard/src/
-  styles/
-    app.css         ← entry; declares @layer order and @imports the rest
-    reset.css
-    theme.css       ← absorbs everything currently in ui/tokens.css
-    base.css
-    components.css
-    atoms.css
-  main.tsx          ← imports './styles/app.css' (single global CSS entry)
-```
-
-`dashboard/src/ui/tokens.css` is **deleted** in this item — its contents move into `theme.css`. CLAUDE.md's reference to `tokens.css` updates to `styles/theme.css`.
-
-#### `app.css` (verbatim)
-
-```css
-@layer reset, theme, base, components, atoms;
-
-@import './reset.css' layer(reset);
-@import './theme.css' layer(theme);
-@import './base.css' layer(base);
-@import './components.css' layer(components);
-@import './atoms.css' layer(atoms);
-```
-
-**Layer order (lowest → highest cascade priority):**
-1. **reset** — modern CSS reset (start with `modern-normalize` or a minimal hand-written reset; pick one and document the choice in a top-of-file comment in `reset.css`).
-2. **theme** — design tokens (CSS custom properties only — `--color-*`, `--space-*`, `--font-*`, `--elevation-*`). No selectors that emit declarations on actual elements.
-3. **base** — element-level defaults: `body`, `html`, headings, links, form elements. Keep the surface small; this is for *defaults*, not opinionated styling.
-4. **components** — global, semantic class-based styles for cross-cutting widgets that aren't CSS Modules (e.g. legacy `.card`, third-party library overrides, markdown rendering classes from `react-markdown` if any need theming). Empty initially — add as we encounter cases.
-5. **atoms** — utility/atomic classes (`.flex`, `.gap-md`, `.text-muted`). Highest priority so a `<div className="text-muted">` actually overrides component-level color when applied. Empty initially; populate as patterns emerge.
-
-CSS Modules (`Button.module.css`, etc.) are **outside** this stack. They get auto-scoped class names from Vite's CSS Modules pipeline and don't participate in global cascade — no layer needed.
-
-#### Base palette layer in `theme.css`
-
-Also introduces a base palette layer (`--gray-1..9`, `--blue-1..9`, `--green-1..9`, `--red-1..9`, `--yellow-1..9`, Tailwind-aligned) above the semantic tokens in `theme.css`. Every semantic color references the palette via `var(--<scale>-<stop>)`. Dark-mode tinted "subtle" backgrounds (`--accent-subtle`, `--success-subtle`, `--error-subtle`, `--warning-subtle`, `--bg-message-user`, `--bg-tool`) are derived from the accent stops via `oklch(from var(--…-7) <L> <C> h)` relative color syntax — no raw hex outside the palette block (except `--diff-*`, which intentionally tracks GitHub's diff colors). Convention: `-1` lightest → `-9` darkest, matching open-props/Tailwind direction.
-
-#### Files to touch
-
-- `dashboard/src/styles/app.css` (new) — the layer declaration + imports above
-- `dashboard/src/styles/reset.css` (new) — pick a reset; document the choice in a comment at the top
-- `dashboard/src/styles/theme.css` (new) — content moved from `dashboard/src/ui/tokens.css` (1:1 move; no content changes)
-- `dashboard/src/styles/base.css` (new) — start empty with a comment listing what belongs here ("body, html, headings, links, form defaults"); don't preemptively add styles
-- `dashboard/src/styles/components.css` (new) — empty with a header comment explaining the layer's purpose
-- `dashboard/src/styles/atoms.css` (new) — empty with a header comment explaining the layer's purpose
-- `dashboard/src/ui/tokens.css` — **delete** after moving content
-- `dashboard/src/main.tsx` — change `import './ui/tokens.css'` to `import './styles/app.css'`
-- `CLAUDE.md` — update the CSS section: replace the `tokens.css` reference with `styles/theme.css`, and add a one-line bullet about the layer architecture (e.g. *"Global CSS lives in `dashboard/src/styles/`, imported once via `app.css` which declares the layer order: `reset, theme, base, components, atoms`."*)
-- `stylelint.config.cjs` — verify the config still ignores `dashboard/dist/**` and friends; no rule changes expected, but ensure `@layer` and `@import layer(...)` syntax doesn't trigger a false positive (newer `stylelint-config-standard` supports both natively; if it doesn't, add the at-rules to `at-rule-no-unknown` ignore list with a comment)
-
-#### Acceptance
-
-1. `pnpm typecheck && pnpm test && pnpm run lint:css` all pass.
-2. The dashboard renders pixel-identically to pre-migration in both LTR and current theme — no visual regressions. Layered CSS with no actual rules added in `base/components/atoms` should be a no-op.
-3. DevTools → Inspector → Computed pane shows the `@layer` ordering for any style that ends up in a layer (verify on one element from `theme.css` — e.g. body background — that the layer label appears).
-4. `dashboard/src/ui/tokens.css` no longer exists; grep finds zero references to it across the repo.
-5. CLAUDE.md's CSS section names `styles/theme.css` (not `tokens.css`) and lists the layer order.
-
-#### Out of scope
-
-- Adding any new actual styles to `base.css`, `components.css`, or `atoms.css`. This item is *purely* the file structure and import pipeline. Populate the layers in follow-ups when there's a concrete style to add.
-- Migrating CSS Modules to also opt into a layer via `@layer components.foo { ... }` blocks — unnecessary given Vite's scoping, and adds noise.
-- Swapping in a different reset library or opinionated typography system. Pick a minimal reset, document it, move on.
-- Sass / PostCSS plugins beyond what's already configured.
-- Any work that belongs to item 58 (primitives layer).
-
-#### Risk callouts
-
-- **Vite + CSS @import:** Vite handles `@import` in CSS by inlining at build time. Confirm in dev (`pnpm run dev`) AND in a production build (`pnpm run build:dashboard`) that `@layer` survives intact — modern Vite preserves it, but verify by inspecting the built CSS for `@layer reset, theme, base, components, atoms;`. If a future Vite version flattens layers, we'll need a postcss plugin (don't add preemptively).
-- **Stylelint + @layer:** `stylelint-config-standard` 36+ supports `@layer` natively. If lint fails on it, add `'at-rule-no-unknown': [true, { ignoreAtRules: ['layer'] }]` to `stylelint.config.cjs` with a one-line comment, but try without first.
-- **Browser support:** `@layer` ships in all modern browsers since 2022 (Safari 15.4+, Firefox 97+, Chrome 99+). Electron 35 ships Chromium 134+ — fully supported. Non-issue for our target.
-- **Unsourced reset choice:** Don't paste a reset from memory. Pin a specific source (e.g. `modern-normalize` v3.0.1 copied verbatim, or Josh Comeau's reset with attribution) so the file's provenance is obvious to reviewers.
-
 ### 58. Seed a design system primitives layer (Button, Row, Column, Text, Link)
 
 **What:** Create a small set of reusable primitive components in `dashboard/src/ui/` so feature components stop hand-rolling buttons, flex containers, headings, and links. Today there are ~86 raw `<button>` usages and ~112 inline flex containers across `dashboard/src/components/`; each is one more place where styling drifts from tokens and accessibility falls through.
@@ -793,7 +710,7 @@ Also introduces a base palette layer (`--gray-1..9`, `--blue-1..9`, `--green-1..
 
 **Why NOT Storybook (yet):** Solo dogfooding tool, ~5 primitives to start. A `/playground` route inside the existing dashboard gives the same isolation + variant-comparison benefits with zero new deps, zero new build target, and no risk of stories rotting. Revisit if (a) the primitives count grows past ~15, or (b) someone else starts contributing components — then permalinks + the addons ecosystem actually pay for themselves.
 
-**Depends on:** Item 57 (CSS cascade layers). The `theme.css` location and layer architecture must exist before primitives reference design tokens through the new path.
+**Depends on:** Item 57 (CSS cascade layers — DONE, see [PLAN-DONE.md](./PLAN-DONE.md)). The `theme.css` location and layer architecture exist; primitives reference design tokens through the new path.
 
 #### What ships in this item
 
